@@ -12,8 +12,8 @@ library(emmeans)
 library(performance)
 library(ggcorrplot)
 library(vegan)
-library(h2o)
-library(naniar)
+#library(h2o)
+#library(naniar)
 ```
 
 ```{r, message = FALSE, echo = FALSE, warning = FALSE}
@@ -246,7 +246,11 @@ ggarrange(
 
 It seems that the DLD group is somewhat different from the others. But we have to test this.
 
-```{r}
+**Figure 4**
+
+*Correlations between correlation matrices in the TD, ADHD, ASD and DLD groups*
+
+```{r, echo = FALSE, fig.height = 3, fig.width = 3}
 groups = c("TD", "ADHD", "ASD", "DLD")
 mantel_r = matrix(nrow = 4, ncol = 4)
 colnames(mantel_r) = groups
