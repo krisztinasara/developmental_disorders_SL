@@ -91,6 +91,10 @@ Apart from the different group patterns, another thing to notice is that variabi
 
 ### 1.2.1. How does statistical learning look like in the TD, ADHD, ASD and DLD groups?
 
+**Figure 2**
+
+*Statistical learning indices in the case of TD, ADHD, ASD and DLD groups*
+
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
 ggarrange(
   df |>
@@ -106,6 +110,8 @@ ggarrange(
   labels = c("A", "B"),
   ncol = 2, nrow = 1)
 ```
+
+*Note.* A: AGL median RT difference, B: AGL offline
 
 ```{r}
 m10 = lm(
@@ -129,7 +135,7 @@ Group was not a significant predictor in the case of either *AGL median RT diffe
 
 ## 1.2.2. Is statistical learning ability linked to language ability?
 
-**Figure 2**
+**Figure 3**
 
 *The relationship between statistical learning and language ability indices by group*
 
@@ -249,7 +255,7 @@ In the main analysis of the study, we will look at what cognitive abilities pred
 
 However, the slightly different patterns of the language \~ statistical learning relationship, albeit nonsignificant, warns us: if we include all the groups and disregard the potential differences in the relationship matrix of their abilities, we might obtain noisy data here. For this reason, we observe the relationship matrix of abilities in the different groups.
 
-**Figure 3**
+**Figure 4**
 
 *Relationships between language and cognitive abilities in the TD, ADHD, ASD and DLD groups*
 
@@ -291,7 +297,7 @@ ggarrange(
 
 It seems that the DLD group is somewhat different from the others. But we have to test this.
 
-**Figure 4**
+**Figure 5**
 
 *Correlations between correlation matrices in the TD, ADHD, ASD and DLD groups*
 
