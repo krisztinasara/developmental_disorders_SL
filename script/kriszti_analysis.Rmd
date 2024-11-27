@@ -1,8 +1,13 @@
 ---
 title: "The cognitive basis of language ability: an exploratory study on the role of statistical learning and other cognitive abilities in TD, ADHD, ASD and DLD"
-author: "krisztinasara"
+author: "Krisztina Sára Lukics"
 date: "`r Sys.Date()`"
-output: html_document
+output: 
+  html_document:
+    theme: cosmo
+    toc: yes
+    toc_float:
+      collapsed: true
 ---
 
 ```{r, include = FALSE}
@@ -12,8 +17,6 @@ library(emmeans)
 library(performance)
 library(ggcorrplot)
 library(vegan)
-#library(h2o)
-#library(naniar)
 ```
 
 ```{r, message = FALSE, echo = FALSE, warning = FALSE}
@@ -26,7 +29,9 @@ df = df |>
     )
 ```
 
-# 1. Language in a typically developing and three diagnostical groups
+# 1. Exploratory analysis about the relationship of statistical learning and language in the TD, ADHD, ASD and DLD groups
+
+# 1.1. Language in the TD, ADHD, ASD and DLD groups
 
 **Figure 1**
 
@@ -63,7 +68,7 @@ summary(m1)
 contrast(emm1, "pairwise")
 ```
 
-We can observe here that in expressive vocabulary, the ASD group is weaker than the TD group, *p* < .001, the ADHD group, *p* = .003, and the DLD group, *p* = .011. No other comparisons showed significant differences.
+We can observe here that in expressive vocabulary, the ASD group is weaker than the TD group, *p* \< .001, the ADHD group, *p* = .003, and the DLD group, *p* = .011. No other comparisons showed significant differences.
 
 ```{r, include = FALSE}
 m2 = lm(
@@ -76,15 +81,53 @@ summary(m2)
 contrast(emm2, "pairwise")
 ```
 
-In the case of sentence repetition, the DLD group is the weakest, then the ASD group, and then the ADHD group. The ASD and DLD groups were significantly weaker than the TD group, *p* = .001, and *p* < .001, respectively. The ADHD and DLD groups also significantly differed from each other, *p* = .016. No other differences were significant.
+In the case of sentence repetition, the DLD group is the weakest, then the ASD group, and then the ADHD group. The ASD and DLD groups were significantly weaker than the TD group, *p* = .001, and *p* \< .001, respectively. The ADHD and DLD groups also significantly differed from each other, *p* = .016. No other differences were significant.
 
 These results confirm earlier results finding smaller vocabulary in ASD and weaker syntactical abilities is DLD.
 
 Apart from the different group patterns, another thing to notice is that variability is larger in sentence repetition than in expressive vocabulary (at least I believe it is).
 
-# 2. Statistical learning and language in a typically developing and three diagnostical groups
+## 1.2. Statistical learning and language in a typically developing and three diagnostical groups
 
-Is statistical learning ability linked to language ability?
+### 1.2.1. How does statistical learning look like in the TD, ADHD, ASD and DLD groups?
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ggarrange(
+  df |>
+  ggplot(aes(group, AGL_medRT_diff)) +
+    geom_boxplot() +
+    labs(y = "AGL median RT difference") +
+    theme(axis.title.x = element_blank()),
+  df |>
+  ggplot(aes(group, AGL_offline)) +
+    geom_boxplot() +
+    labs(y = "AGL offline") +
+    theme(axis.title.x = element_blank()),
+  labels = c("A", "B"),
+  ncol = 2, nrow = 1)
+```
+
+```{r}
+m10 = lm(
+  AGL_medRT_diff ~
+    group,
+  df
+)
+summary(m10)
+```
+
+```{r}
+m11 = lm(
+  AGL_offline ~
+    group,
+  df
+)
+summary(m11)
+```
+
+Group was not a significant predictor in the case of either *AGL median RT difference* or *AGL offline*. This means that any group differences in language are not explained by group differences in statistical learning.
+
+## 1.2.2. Is statistical learning ability linked to language ability?
 
 **Figure 2**
 
@@ -96,31 +139,33 @@ ggarrange(
     ggplot(aes(AGL_medRT_diff, expr_vocab)) +
     geom_point() +
     geom_smooth(method = "lm") +
+    labs(x = "AGL median RT difference", y = "expressive vocabulary") +
     facet_wrap(~group),
   df |>
     ggplot(aes(AGL_offline, expr_vocab)) +
     geom_point() +
+    labs(x = "AGL offline", y = "expressive vocabulary") +
     geom_smooth(method = "lm") +
     facet_wrap(~group),
   df |>
     ggplot(aes(AGL_medRT_diff, sent_rep)) +
     geom_point() +
+    labs(x = "AGL median RT difference", y = "sentence repetition") +
     geom_smooth(method = "lm") +
     facet_wrap(~group),
   df |>
     ggplot(aes(AGL_offline, sent_rep)) +
     geom_point() +
+    labs(x = "AGL offline", y = "sentence repetition") +
     geom_smooth(method = "lm") +
     facet_wrap(~group),
   labels = c("A", "B", "C", "D"),
   ncol = 2, nrow = 2)
 ```
 
-*Note.*
+The visual inspection of the data suggests a relationship, but suggests that this relationship is uniform among the groups (except for maybe the *expressive vocabulary* \~ *AGL median RT diff* relationship). But to test it, we make two-step embedded linear models here. As the first step, we enter statistical learning ability as a predictor. Then we enter group. With this approach, we can test whether the relationship is present on the level of the population, and whether the group modifies the results.
 
-The visual inspection of the data suggests a relationship, but suggests that this relationship is uniform among the groups (except for maybe the *expressive vocabulary* ~ *AGL median RT diff* relationship). But to test it, we make two-step embedded linear models here. As the first step, we enter statistical learning ability as a predictor. Then we enter group. With this approach, we can test whether the relationship is present on the level of the population, and whether the group modifies the results.
-
-As a rule of thumb, we only include as many predictors that fulfill an assumption of a minimum of 15 observation per predictors. [Otherwise, the regression analysis will be unreliable and/or lack statistical power.](https://stats.stackexchange.com/questions/601083/multiple-linear-regression-minimum-sample-size-required-when-only-a-subset-of-i) This makes 102 / 15 ~ 7 predictors per analysis. As with the SL * group interaction, there are already 5 five predictors, we will limit ourselves to using only this one interaction per analysis.
+As a rule of thumb, we only include as many predictors that fulfill an assumption of a minimum of 15 observation per predictors. [Otherwise, the regression analysis will be unreliable and/or lack statistical power.](https://stats.stackexchange.com/questions/601083/multiple-linear-regression-minimum-sample-size-required-when-only-a-subset-of-i) This makes 102 / 15 \~ 7 predictors per analysis. As with the SL \* group interaction, there are already 5 five predictors, we will limit ourselves to using only this one interaction per analysis.
 
 ```{r, include = FALSE}
 m3 = lm(
@@ -138,7 +183,7 @@ summary(m4)
 compare_performance(m3, m4)
 ```
 
-In the case of the *expressive vocabulary* ~ *AGL median RT difference* relationship, neither the effect of statistical learning nor the interaction of statistical learning and group were significant.
+In the case of the *expressive vocabulary* \~ *AGL median RT difference* relationship, neither the effect of statistical learning nor the interaction of statistical learning and group were significant.
 
 ```{r, include = FALSE}
 m5 = lm(
@@ -156,7 +201,7 @@ summary(m6)
 compare_performance(m5, m6)
 ```
 
-In the case of the *expressive vocabulary* ~ *AGL offline* relationship, the effect of statistical learning was significant (first model), but the interaction of statistical learning and group was not significant.
+In the case of the *expressive vocabulary* \~ *AGL offline* relationship, the effect of statistical learning was significant (first model), but the interaction of statistical learning and group was not significant.
 
 ```{r, include = FALSE}
 m7 = lm(
@@ -174,7 +219,7 @@ summary(m8)
 compare_performance(m7, m8)
 ```
 
-In the case of the *sentence repetition* ~ *AGL median RT difference* relationship, neither the effect of statistical learning (marginal significance) nor the interaction of statistical learning and group were significant.
+In the case of the *sentence repetition* \~ *AGL median RT difference* relationship, neither the effect of statistical learning (marginal significance) nor the interaction of statistical learning and group were significant.
 
 ```{r, include = FALSE}
 m9 = lm(
@@ -192,17 +237,17 @@ summary(m10)
 compare_performance(m9, m10)
 ```
 
-In the case of the *expressive vocabulary* ~ *AGL median RT difference* relationship, the effect of statistical learning was significant (first model), but the interaction of statistical learning and group was not significant.
+In the case of the *sentence repetition* \~ *AGL offline* relationship, the effect of statistical learning was significant (first model), but the interaction of statistical learning and group was not significant.
 
-To summarize, sentence repetition in predicted by both *AGL median RT difference* and *AGL offline*, independently from group. Expressive vocabulary is not predicted by any of the statistical learning indices. This might be partly because there is not much variability here.
+To summarize, both expressive vocabulary and sentence repetition are predicted by *AGL offline*, independently from group. *AGL median RT difference* did not predict language ability.
 
-# 3. Besides statistical learning, what predicts language ability?
+# 2. Cognitive predictors of language ability
 
-## 3.1. Invariance test of correlations by group
+## 2.1. Invariance test of correlations by group
 
-As a third step, we will look at what predicts *expressive vocabulary* and *sentence repetition* on the level of the whole group. We look at this question on the whole group level because 1) we did not find significant differences in the language ~ statistical learning relationship between the groups, and 2) the study with 102 participants lacks statistical power to include the group as a factor here as well.
+In the main analysis of the study, we will look at what cognitive abilities predict *expressive vocabulary* and *sentence repetition* on the level of the whole group. We look at this question on the whole group level because we assume that including groups with variable language abilities introduce variability to our sample. We will omit group as a factor here because the study with 102 participants lacks statistical power to include the group as a factor here as well.
 
-But the slightly different patterns of the language ~ statistical learning relationship, albeit nonsignificant, warns us: if we include all the groups and disregard the potential differences in the relationship matrix of their abilities, we might obtain noisy data here. For this reason, we observe the relationship matrix of abilities in the different groups.
+However, the slightly different patterns of the language \~ statistical learning relationship, albeit nonsignificant, warns us: if we include all the groups and disregard the potential differences in the relationship matrix of their abilities, we might obtain noisy data here. For this reason, we observe the relationship matrix of abilities in the different groups.
 
 **Figure 3**
 
@@ -288,6 +333,6 @@ Mantel tests of matrix correlations showed that the architecture of ability rela
 
 Thus, because it would make noise in the results, we omitted the DLD group from further analyses.
 
-## 3.2. Random forest analyses
+## 2.2. Random forest analyses
 
 (Petya szkriptje innen)
