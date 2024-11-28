@@ -10,6 +10,9 @@
 ##
 ## ---------------------------
 
+library(tidyverse)
+
+df = read_csv("../data/df.csv")
 dfs = df |> select(-c(ID, age_years, IQ, AFC_phr, AFC_sent, prod))
 dfs = dfs |> select(-c(group)) |> purrr::map(scale) |> as.data.frame()
 group = df$group
@@ -23,7 +26,7 @@ dfsc = mice::complete(imputed_data)
 
 fcm_result <- fclust::FKM(
   X = dfsc |> select(-group),
-  k = 6,
+  k = 2,
   m = 2,
   maxit = 500
   )
