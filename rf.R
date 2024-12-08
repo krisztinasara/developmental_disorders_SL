@@ -13,7 +13,12 @@ d = read_csv('data/df.csv')
 
 # -- rummage -- #
 
-names(d)
+d2 = d |> 
+  mutate(value = 1) |> 
+  pivot_wider(names_from = group, values_from = value, values_fill = 0) |>
+  select(-TD)
+
+names(d2)
 # outcome variables?
 # sent rep, expr vocab
 # predictor variables?
@@ -32,7 +37,7 @@ names(d)
 # Specify the response and predictor variables
 response1 = "sent_rep"
 response2 = "expr_vocab"
-predictors = c("AGL_offline", "AGL_medRT_diff", "IQ", "group", 
+predictors = c("AGL_offline", "AGL_medRT_diff", "IQ", "DLD", "ADHD", "ASD", 
                "digit_span_forward", "digit_span_backward", 
                "PS_vis_RT_med", "PS_ac_RT_med", "n_back_2_mean_score")
 
@@ -43,8 +48,7 @@ predictors = c("AGL_offline", "AGL_medRT_diff", "IQ", "group",
 h2o.init(max_mem_size = "16g")
 
 # Convert the dataframe to an H2O frame
-d$group <- as.factor(d$group)
-d_h2o = as.h2o(d)
+d_h2o = as.h2o(d2) # d2!
 
 # Train the Lasso regression model
 # fit1 = h2o.glm(
@@ -89,7 +93,7 @@ hyper_params = list(
 
 # Run the grid search
 h2o.grid(algorithm = "randomForest",
-         grid_id = "rf_grid1",
+         grid_id = "rf_grid_1",
          x = predictors, 
          y = response1,
          seed = 29, 
@@ -99,7 +103,7 @@ h2o.grid(algorithm = "randomForest",
          search_criteria = list(strategy = "Cartesian"))
 
 # Get the grid search results, sorted by rmse
-grid_results1 = h2o.getGrid(grid_id = "rf_grid1", sort_by = "rmse", decreasing = FALSE)
+grid_results1 = h2o.getGrid(grid_id = "rf_grid_1", sort_by = "rmse", decreasing = FALSE)
 
 # Print the grid search results
 print(grid_results1)
@@ -108,12 +112,13 @@ print(grid_results1)
 best_model1 = h2o.getModel(grid_results1@model_ids[[1]])
 print(best_model1)
 h2o.saveModel(object = best_model1, path = 'models')
+h2o.varimp(best_model1)
 
 ## resp 2 ##
 
 # Run the grid search
 h2o.grid(algorithm = "randomForest",
-         grid_id = "rf_grid2",
+         grid_id = "rf_grid_2",
          x = predictors, 
          y = response2,
          seed = 29, 
@@ -123,7 +128,7 @@ h2o.grid(algorithm = "randomForest",
          search_criteria = list(strategy = "Cartesian"))
 
 # Get the grid search results, sorted by rmse
-grid_results2 = h2o.getGrid(grid_id = "rf_grid2", sort_by = "rmse", decreasing = FALSE)
+grid_results2 = h2o.getGrid(grid_id = "rf_grid_2", sort_by = "rmse", decreasing = FALSE)
 
 # Print the grid search results
 print(grid_results2)
@@ -133,7 +138,21 @@ best_model2 = h2o.getModel(grid_results2@model_ids[[1]])
 print(best_model2)
 h2o.saveModel(object = best_model2, path = 'models')
 
-## checks, save ##
+## add pred ##
+
+predict_1 = as.data.frame(h2o.predict(best_model1, newdata = d_h2o))
+predict_2 = as.data.frame(h2o.predict(best_model2, newdata = d_h2o))
+
+# response1 = "sent_rep"
+# response2 = "expr_vocab"
+
+d = d |> 
+  mutate(
+    sent_rep_pred_rf = predict_1$predict,
+    expr_vocab_pred_rf = predict_2$predict
+  )
+
+## checks ##
 
 h2o.performance(best_model1)
 h2o.performance(best_model2)
@@ -144,7 +163,8 @@ varimp2 = as_tibble(h2o.varimp(best_model2))
 
 h2o.shutdown(prompt = FALSE)
 
-# save
+## save ##
 
 write_tsv(varimp1, 'varimp1.tsv')
 write_tsv(varimp2, 'varimp2.tsv')
+write_tsv(d, 'data/df_pred.tsv')
