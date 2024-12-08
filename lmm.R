@@ -46,7 +46,7 @@ loo1b = loo(fit1b)
 loo1c = loo(fit1c)
 loo1d = loo(fit1d)
 loo_compare(loo1,loo1a)
-loo_compare(loo1,loo1b)
+loo_compare(loo1,loo1b) # slightly worse
 loo_compare(loo1,loo1c)
 loo_compare(loo1,loo1d) # worse
 
@@ -62,6 +62,8 @@ loo_compare(loo(fit1e),loo(fit1f))
 # nothing
 
 ## m2: varimp
+
+fit20 = stan_glm(expr_vocab ~ age_years + group + AGL_offline + digit_span_backward + PS_vis_RT_med + digit_span_forward + n_back_2_mean_score, data = d, chains = 4, cores = 4, iter = 2000)
 
 fit2 = stan_glm(expr_vocab ~ group + AGL_offline + digit_span_backward + PS_vis_RT_med + digit_span_forward + n_back_2_mean_score, data = d2, chains = 4, cores = 4, iter = 2000)
 fit2a = stan_glm(expr_vocab ~ AGL_offline + digit_span_backward + PS_vis_RT_med + digit_span_forward + n_back_2_mean_score, data = d2, chains = 4, cores = 4, iter = 2000)
