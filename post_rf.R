@@ -156,7 +156,7 @@ plots1 = d |>
   )
 
 wrap_plots(plots1$plot)
-ggsave('viz/sent_rep.png', width = 9, height = 3, dpi = 900)
+ggsave('viz/sent_rep.png', width = 9, height = 6, dpi = 900)
 
 plots2 = d |> 
   select(ID,expr_vocab,contains(keep1)) |> 
@@ -181,4 +181,4 @@ plots2 = d |>
   )
 
 wrap_plots(plots2$plot)
-ggsave('viz/expr_vocab.png', width = 9, height = 3, dpi = 900)
+ggsave('viz/expr_vocab.png', width = 9, height = 6, dpi = 900)
