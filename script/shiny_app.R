@@ -1,0 +1,105 @@
+library(shiny)
+library(GGally)
+library(tidyverse)
+
+# create custom plot functions for the server
+# create custom scatterplot function
+custom_plot = function(data, mapping, ...) {
+  ggplot(data = data, mapping = mapping) +
+    geom_point(aes(color = group), alpha = 0.6) +
+    geom_smooth(method = "lm", color = "black", se = FALSE) +
+    theme_minimal()
+}
+# create custom histogram function
+custom_hist = function(data, mapping, ...) {
+  ggplot(data = data, mapping = mapping) +
+    geom_density(alpha = 0.5) +
+    theme_minimal()
+}
+# create custom correlation function
+custom_cor = function(data, mapping, ...) {
+  x = eval_data_col(data, mapping$x)
+  y = eval_data_col(data, mapping$y)
+  corr = cor(x, y, use = "pairwise.complete.obs")
+  ggally_text(
+    label = sprintf("%.2f", corr),
+    mapping = aes(),
+    ...
+  ) + theme_minimal()
+}
+
+# import data
+df = read_csv("../data/df.csv")
+
+ui = fluidPage(
+  titlePanel("Interactive Correlation Plot Matrix"),
+  mainPanel(
+    plotOutput("correlationPlot"),
+    hr(),
+    fluidRow(
+      column(12, 
+             checkboxGroupInput("groups", "Select Groups to Display:",
+                                choices = c("Group 1" = "Group 1", "Group 2" = "Group 2", "Group 3" = "Group 3", "Group 4" = "Group 4"),
+                                selected = c("Group 1", "Group 2", "Group 3", "Group 4"))
+      )
+    )
+  )
+)
+
+
+# define UI for the application
+ui = fluidPage(
+  titlePanel("Interactive correlation plot matrix"),
+  fluidRow(
+    column(12, plotOutput("correlationPlot"))
+  ),
+  hr(),
+  fluidRow(
+    column(6, 
+           checkboxGroupInput("groups", "Select groups to display:",
+                              choices = c("TD" = "TD", "ADHD" = "ADHD", "ASD" = "ASD", "DLD" = "DLD"),
+                              selected = c("TD", "ADHD", "ASD", "DLD"))
+    ),
+    column(6, plotOutput("legendPlot"))
+  )
+)
+
+# define server logic required to draw the correlation plot matrix
+server = function(input, output) {
+  output$correlationPlot = renderPlot({
+    # plot the correlation plot matrix
+    df |>
+      filter(group %in% input$groups) |>
+      select(
+        group, expr_vocab, sent_rep, AGL_medRT_diff, AGL_offline,
+        digit_span_forward, digit_span_backward, PS_vis_RT_med, PS_ac_RT_med, n_back_2_mean_score
+      ) |>
+      ggpairs(
+        columns = 2:10, mapping = aes(color = group),
+        upper = list(continuous = custom_plot),
+        diag = list(continuous = custom_hist), 
+        lower = list(continuous = custom_cor)
+      ) +
+      theme_minimal() +
+      scale_color_manual(values = c("TD" = "red", "ADHD" = "blue", "ASD" = "green", "DLD" = "purple"))
+  })
+  output$legendPlot = renderPlot({
+    # create a dummy plot to display the legend
+    dummy_data = data.frame(group = factor(c("TD", "ADHD", "ASD", "DLD")))
+    ggplot(dummy_data, aes(x = group, fill = group)) +
+      geom_bar() +
+      scale_fill_manual(values = c("TD" = "red", "ADHD" = "blue", "ASD" = "green", "DLD" = "purple")) +
+      theme_classic() +
+      theme(
+        legend.position = "none",
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        axis.line = element_blank()
+        ) +
+      guides(fill = guide_legend(override.aes = list(alpha = 1)))
+  }, height = 100)
+}
+
+# run the application 
+shinyApp(ui = ui, server = server)
