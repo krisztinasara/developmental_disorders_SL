@@ -1,0 +1,12 @@
+{
+    "best_params": {
+        "max_depth": 10,
+        "max_features": 4,
+        "max_samples": 1.0,
+        "min_samples_leaf": 1,
+        "min_samples_split": 2,
+        "n_estimators": 25
+    },
+    "r2": 0.23294996188002914,
+    "mse": 0.006633483691042042
+}

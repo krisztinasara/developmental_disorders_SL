@@ -1,0 +1,339 @@
+---
+title: "The cognitive basis of language ability: the role of statistical learning, perceptual speed and working memory in typically developing and neurodivergent children"
+author: "Krisztina Sára Lukics"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: cosmo
+    toc: yes
+---
+
+This study is about what cognitive factors predict language performance, with the main focus on statistical learning. To answer this question, we collected language ability and cognitive ability data from typically developing and neurodivergent children (ADHD, ASD and DLD). We did so because language impairments/difficulties are prevalent in these diagnostic groups, and this provides us a sample variable enough in language and cognitive abilities to conduct an individual differences study.
+
+The study consists of two parts. In the first part, we conduct exploratory analyses to map children's language and cognitive abilities. The aim of this first part was twofold. First, we wanted to get a picture about how language and cognitive abilities look like in the four (TD, ADHD, ASD and DLD) groups. Second, we wanted to justify our method of pooling data from the different groups by exploring how similar/different the pattern of language and cognitive ability relationships are in the different groups.
+
+In the second part, we conducted a random forest analysis to find out the relative importance of cognitive ability predictors in explaining variation in language abilities.
+
+```{r, include = FALSE}
+library(tidyverse)
+library(ggpubr)
+library(emmeans)
+library(performance)
+library(ggcorrplot)
+library(vegan)
+```
+
+```{r, message = FALSE, echo = FALSE, warning = FALSE}
+df = read_csv("../data/df.csv")
+df = df |>
+  mutate(
+    group = group |> fct_relevel("TD", "ADHD", "ASD", "DLD"),
+    PS_vis_RT_med = -(PS_vis_RT_med),
+    PS_ac_RT_med = -(PS_ac_RT_med)
+    )
+```
+
+# 1. Exploratory analysis about language ability and cognitive functions in the TD, ADHD, ASD and DLD groups
+
+As a first step in the study, we conduct an exploratory analysis on the language and cognitive abilities and their relationships in the TD, ADHD, ASD and DLD groups.
+
+## 1.1. Language ability in the TD, ADHD, ASD and DLD groups
+
+Our target abilities in the whole study are language abilities.
+
+**Figure 1**
+
+*Expressive vocabulary and sentence repetition in the case of TD, ADHD, ASD and DLD groups*
+
+```{r, fig.height = 3, fig.width = 9, echo = FALSE, warning = FALSE, message = FALSE}
+ggarrange(
+  df |>
+  ggplot(aes(group, expr_vocab)) +
+    geom_boxplot() +
+    coord_cartesian(ylim = c(0, 1)) +
+    labs(y = "expressive vocabulary") +
+    theme(axis.title.x = element_blank()),
+  df |>
+  ggplot(aes(group, sent_rep)) +
+    geom_boxplot() +
+    coord_cartesian(ylim = c(0, 1)) +
+    labs(y = "sentence repetition") +
+    theme(axis.title.x = element_blank()),
+  labels = c("A", "B"),
+  ncol = 2, nrow = 1)
+```
+
+*Note.* A: *expressive vocabulary*, B: *sentence repetition*
+
+```{r, include = FALSE}
+m1 = lm(
+  expr_vocab ~
+    group,
+  df
+)
+summary(m1)
+(emm1 <- emmeans(m1, ~ group))
+contrast(emm1, "pairwise")
+```
+
+We can observe here that in expressive vocabulary, the ASD group is weaker than the TD group, *p* \< .001, the ADHD group, *p* = .003, and the DLD group, *p* = .011. No other comparisons showed significant differences.
+
+```{r, include = FALSE}
+m2 = lm(
+  sent_rep ~
+    group,
+  df
+)
+summary(m2)
+(emm2 <- emmeans(m2, ~ group))
+contrast(emm2, "pairwise")
+```
+
+In the case of sentence repetition, the DLD group is the weakest, then the ASD group, and then the ADHD group. The ASD and DLD groups were significantly weaker than the TD group, *p* = .001, and *p* \< .001, respectively. The ADHD and DLD groups also significantly differed from each other, *p* = .016. No other differences were significant.
+
+These results confirm earlier results finding smaller vocabulary in ASD and weaker syntactical abilities is DLD.
+
+Apart from the different group patterns, another thing to notice is that variability is larger in sentence repetition than in expressive vocabulary (at least I believe it is).
+
+## 1.2. Statistical learning in the TD, ADHD, ASD and DLD groups
+
+Our main focus is on statistical learning explaining individual differences in language abilities.
+
+**Figure 2**
+
+*Statistical learning indices in the case of TD, ADHD, ASD and DLD groups*
+
+```{r, fig.height = 6, fig.width = 9, echo = FALSE, warning = FALSE, message = FALSE}
+ggarrange(
+  df |>
+  ggplot(aes(group, AGL_medRT_diff)) +
+    geom_hline(yintercept = 0) +
+    geom_boxplot() +
+    labs(y = "AGL median RT diff.") +
+    theme(axis.title.x = element_blank()),
+  df |>
+  ggplot(aes(group, AFC_phr)) +
+    geom_hline(yintercept = 0.5) +
+    geom_boxplot() +
+    labs(y = "AGL 2AFC phrase") +
+    theme(axis.title.x = element_blank()),
+  df |>
+  ggplot(aes(group, AFC_sent)) +
+    geom_hline(yintercept = 0.5) +
+    geom_boxplot() +
+    labs(y = "AGL 2AFC sentence") +
+    theme(axis.title.x = element_blank()),
+  df |>
+  ggplot(aes(group, prod)) +
+    geom_hline(yintercept = 1/3) +
+    geom_boxplot() +
+    labs(y = "AGL production") +
+    theme(axis.title.x = element_blank()),
+  labels = c("A", "B", "C", "D"),
+  ncol = 2, nrow = 2)
+```
+
+*Note.* A: *AGL median RT difference*, B: *AGL 2AFC phrase*, C: *AGL 2AFC sentence*, D: *AGL production*
+
+```{r, include = FALSE}
+m3 = lm(
+  AGL_medRT_diff ~
+    group,
+  df
+)
+summary(m3)
+```
+
+```{r, include = FALSE}
+m4 = lm(
+  AFC_phr ~
+    group,
+  df
+)
+summary(m4)
+(emm4 <- emmeans(m4, ~ group))
+contrast(emm4, "pairwise")
+```
+
+```{r, include = FALSE}
+m5 = lm(
+  AFC_sent ~
+    group,
+  df
+)
+summary(m5)
+```
+
+```{r, include = FALSE}
+m6 = lm(
+  prod ~
+    group,
+  df
+)
+summary(m6)
+```
+
+Regression analyses show that group was only a significant predictor in the case of *AGL 2AFC phrase*. Here, the DLD group had a significantly lower performance than the TD group, *p* = .039, and the difference between the TD and ASD groups were marginally significant, *p* = .074. We have no strong reason to believe that *AGL 2AFC phrase* is different from the other statistical learning indices and group differences in statistical learning should be more apparent here. This means that group differences in language are not explained by group differences in statistical learning. For this reason, in what follows, we will used aggregated indices from the offline statistical learning task (*AGL 2AFC phrase*, *AGL 2AFC sentence*, and *AGL production*). Thus, we will have two indices of statistical learning: *AGL median RT difference* and *AGL offline*.
+
+## 1.3. Perceptual speed and working memory in the TD, ADHD, ASD and DLD groups
+
+We also want to know whether other cognitive factors like perceptual speed or working memory also explain or explain better language ability.
+
+**Figure 3**
+
+*Perceptual speed and working memory in the case of TD, ADHD, ASD and DLD groups*
+
+```{r, fig.height = 9, fig.width = 9, echo = FALSE, warning = FALSE, message = FALSE}
+ggarrange(
+  df |>
+  ggplot(aes(group, PS_vis_RT_med)) +
+    geom_boxplot() +
+    labs(y = "visual PS") +
+    theme(axis.title.x = element_blank()),
+  df |>
+  ggplot(aes(group, PS_ac_RT_med)) +
+    geom_boxplot() +
+    labs(y = "auditory PS") +
+    theme(axis.title.x = element_blank()),
+  df |>
+  ggplot(aes(group, digit_span_forward)) +
+    geom_boxplot() +
+    labs(y = "forward DS") +
+    theme(axis.title.x = element_blank()),
+  df |>
+  ggplot(aes(group, digit_span_backward)) +
+    geom_boxplot() +
+    labs(y = "backward DS") +
+    theme(axis.title.x = element_blank()),
+  df |>
+  ggplot(aes(group, n_back_2_mean_score)) +
+    geom_boxplot() +
+    labs(y = "n-back") +
+    theme(axis.title.x = element_blank()),
+  labels = c("A", "B", "C", "D", "E"),
+  ncol = 2, nrow = 3)
+```
+
+*Note.* A: *visual perceptual speed*, B: *auditory perceptual speed*, C: *forward digit span*, D: *backward digit span*, E: *n-back*
+
+```{r, include = FALSE}
+m5 = lm(
+  PS_vis_RT_med ~ group, df
+) # nonsig
+m6 = lm(
+  PS_ac_RT_med ~ group, df
+) # nonsig
+m7 = lm(
+  digit_span_forward ~ group, df
+) # sig
+m8 = lm(
+  digit_span_backward ~ group, df
+) # sig
+m9 = lm(
+  n_back_2_mean_score ~ group, df
+) # nonsig
+(emm7 <- emmeans(m7, ~ group))
+contrast(emm7, "pairwise")
+(emm8 <- emmeans(m8, ~ group))
+contrast(emm8, "pairwise")
+```
+
+Regression analyses show that group is a significant predictor of forward and backward digit span. In the case of forward digit span, the performance of the DLD group is significantly lower than the TD group, *p* = .008, but none of the other groups differ significantly from each other. In the case of backward digit span, the performance of the DLD group is significantly lower than the TD group, *p* = .046, and the ADHD group is marginally significantly lower than the TD group, *p* = .088, but none of the other group differences are significant.
+
+The effect of group is not significant in the case of visual and auditory perceptual speed and n-back.
+
+## 1.4. Pattern of language and cognitive ability relationships in the TD, ADHD, ASD and DLD groups
+
+As a next step, we observe how the relationship matrix of language and cognitive abilities look like in the different groups.
+
+**Figure 4**
+
+*Relationships between language and cognitive abilities in the TD, ADHD, ASD and DLD groups*
+
+```{r, echo = FALSE, fig.height = 10, fig.width = 12}
+ggarrange(
+  df |>
+    select(-c(AFC_phr, AFC_sent, prod)) |>
+    filter(group == "TD") |>
+    select(-c(ID, age_years, IQ, group)) |>
+    cor(use = "pairwise.complete.obs") |>
+    ggcorrplot(
+      type = "lower",
+      lab = TRUE
+    ),
+  df |>
+    select(-c(AFC_phr, AFC_sent, prod)) |>
+    filter(group == "ADHD") |>
+    select(-c(ID, age_years, IQ, group)) |>
+    cor(use = "pairwise.complete.obs") |>
+    ggcorrplot(
+      type = "lower", lab = TRUE
+    ),
+  df |>
+    select(-c(AFC_phr, AFC_sent, prod)) |>
+    filter(group == "ASD") |>
+    select(-c(ID, age_years, IQ, group)) |>
+    cor(use = "pairwise.complete.obs") |>
+    ggcorrplot(
+      type = "lower", lab = TRUE
+    ),
+  df |>
+    select(-c(AFC_phr, AFC_sent, prod)) |>
+    filter(group == "DLD") |>
+    select(-c(ID, age_years, IQ, group)) |>
+    cor(use = "pairwise.complete.obs") |>
+    ggcorrplot(
+      type = "lower", lab = TRUE
+    ),
+  labels = c("TD", "ADHD", "ASD", "DLD"),
+  ncol = 2, nrow = 2
+  )
+```
+
+From the visual inspection, it seems that the DLD group is somewhat different from the others.
+
+Mantel tests of matrix correlations show that the architecture of ability relationships in the TD, ASD and ADHD groups significantly correlate with each other (but this is not a perfect correlation). In the DLD group, the correlation matrix of abilities is more different, and shows no significant correlation with the other groups. This suggests that the occasional weaker performance in the ADHD and ASD group might originate from similar sources as weaker performance in the TD group. On the other hand, lower performance in the DLD group might originate from more different sources.
+
+**Figure 5**
+
+*Correlations between correlation matrices in the TD, ADHD, ASD and DLD groups*
+
+```{r, echo = FALSE, fig.height = 3, fig.width = 3, fig.align = 'center'}
+groups = c("TD", "ADHD", "ASD", "DLD")
+mantel_r = matrix(nrow = 4, ncol = 4)
+colnames(mantel_r) = groups
+rownames(mantel_r) = groups
+mantel_p = matrix(nrow = 4, ncol = 4)
+colnames(mantel_p) = groups
+rownames(mantel_p) = groups
+for (first in groups) {
+  for (second in groups) {
+    m = mantel(
+      xdis = df |>
+        select(-c(AFC_phr, AFC_sent, prod)) |>
+        filter(group == first) |>
+        select(-c(ID, age_years, IQ, group)) |>
+        cor(use = "pairwise.complete.obs"),
+      ydis = df |>
+        select(-c(AFC_phr, AFC_sent, prod)) |>
+        filter(group == second) |>
+        select(-c(ID, age_years, IQ, group)) |>
+        cor(use = "pairwise.complete.obs")
+    )
+    mantel_r[first, second] = m[[3]]
+    mantel_p[first, second] = m[[4]]
+  }
+}
+remove(m)
+ggcorrplot(
+  mantel_r,
+  method = "square",
+  type = "lower",
+  lab = TRUE,
+  p.mat = mantel_p
+)
+```
+
+# 2. What predicts language ability: random forest analyses
+
+In the main analysis of the study, we will look at what cognitive abilities predict *expressive vocabulary* and *sentence repetition* on the level of the whole group. We look at this question on the whole group level because we assume that including groups with variable language abilities introduce variability to our sample. However, we omit the DLD group because individual differences in language ability might originate from different sources here, and thus including it would make noise in the results. We will also omit group as a predictor.

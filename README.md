@@ -1,3 +1,11 @@
+# file structure
+
+- data: data files, model fitting files
+- docs: info sheets
+- script/python: preprocess and combine data, random forest
+- script/R: visualisations, lm, miscellaneous
+- viz: visualisations for paper
+
 # summary of indices
 
 variable |	explanation	|	variable group	|	variable type	|	note
