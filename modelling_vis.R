@@ -9,12 +9,23 @@ library(sjPlot)
 library(corrplot)
 library(performance)
 library(glue)
+library(jsonlite)
 
 # -- read -- #
 
 d = read_csv('data/df.csv')
+p_ev = read_csv('data/predictions_expr_vocab.csv')
+p_sr = read_csv('data/predictions_sent_rep.csv')
+f_ev = read_csv('data/feature_importances_expr_vocab.csv')
+f_sr = read_csv('data/feature_importances_sent_rep.csv')
+read_json('data/results_expr_vocab.json')
+read_json('data/results_sent_rep.json')
 
 # -- wrangle -- #
+
+d = d |> 
+  left_join(p_ev) |> 
+  left_join(p_sr)
 
 all_names = names(d)[!names(d) %in% c('ID','age_years','prod','group')]
 var_names = names(d)[!names(d) %in% c('ID','age_years','prod','sent_rep','expr_vocab')]
@@ -92,6 +103,8 @@ cors |>
 
 ggsave('viz/correlations.png', width = 9, height = 6, dpi = 900)
 
+# -- missing -- #
+
 d |>
   select(ID,all_of(all_names)) |> 
   pivot_longer(-ID) |> 
@@ -112,6 +125,45 @@ d |>
   scale_y_discrete(labels = fct_rev(all_names_long))
 
 ggsave('viz/missing.png', width = 12, height = 6, dpi = 900)
+
+# -- xgboost predictions -- #
+
+p1 = d |> 
+  ggplot(aes(sent_rep,sent_rep_pred)) +
+  geom_point() +
+  theme_bw() +
+  xlab('sentence repetition') +
+  ylab('sentence repetition (predicted)')
+
+p2 = d |> 
+  ggplot(aes(expr_vocab,expr_vocab_pred)) +
+  geom_point() +
+  theme_bw() +
+  xlab('expressive vocabulary') +
+  ylab('expressive vocabulary (predicted)')
+
+p1 + p2
+ggsave('viz/predictions.png', width = 6, height = 3, dpi = 900)
+
+# -- varimp -- #
+
+p1 = f_sr |> 
+  mutate(Feature = fct_reorder(Feature,Importance)) |> 
+  ggplot(aes(Importance,Feature)) +
+  geom_col() +
+  theme_few() +
+  theme(axis.title.y = element_blank()) +
+  ggtitle('Sentence repetition model')
+
+p2 = f_ev |> 
+  mutate(Feature = fct_reorder(Feature,Importance)) |> 
+  ggplot(aes(Importance,Feature)) +
+  geom_col() +
+  theme_few() +
+  theme(axis.title.y = element_blank()) +
+  ggtitle('Expressive vocabulary model')
+
+p1 + p2
 
 # -- lms -- #
 
