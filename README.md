@@ -2,8 +2,8 @@
 
 - data: data files, model fitting files
 - docs: info sheets
-- script/python: preprocess and combine data, random forest
-- script/R: visualisations, lm, miscellaneous
+- script/python: preprocess and combine data, xgboost
+- script/R: code to make visualisations, lm, miscellaneous
 - viz: visualisations for paper
 
 # summary of indices
