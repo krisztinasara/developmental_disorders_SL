@@ -1,11 +1,11 @@
 {
     "best_params": {
-        "colsample_bytree": 1.0,
-        "learning_rate": 0.05,
+        "colsample_bytree": 0.2,
+        "learning_rate": 0.1,
         "max_depth": 2,
-        "min_child_weight": 1,
-        "n_estimators": 100,
+        "min_child_weight": 5,
+        "n_estimators": 50,
         "subsample": 0.8
     },
-    "neg_mean_squared_error": -0.008922443875794862
+    "neg_mean_squared_error": -0.008272811886903524
 }

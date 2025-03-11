@@ -23,7 +23,7 @@ data = pd.get_dummies(data, columns=['group'])
 data = data.drop(columns=['group_TD'])
 
 # drop id col
-data = data.drop(columns=['ID','age_years','IQ'])
+data = data.drop(columns=['ID','age_years','IQ','prod','AFC_phr','AFC_sent'])
 
 # set up XGBoost regressor (using 'reg:squarederror' for regression)
 xgbr = XGBRegressor(objective='reg:squarederror', missing=np.nan)
@@ -34,7 +34,7 @@ param_grid = {
     'learning_rate': [0.01, 0.05, 0.1],    # smaller learning rates for stable convergence
     'max_depth': [2, 3],                 # shallow trees help reduce complexity and overfitting
     'subsample': [0.8, 1.0],             # use most or all data per tree to retain signal
-    'colsample_bytree': [0.8, 1.0],      # limit feature sampling to lessen the impact of correlated predictors
+    'colsample_bytree': [0.2, 0.5, 0.8, 1.0],      # limit feature sampling to lessen the impact of correlated predictors
     'min_child_weight': [1, 3, 5]        # higher values require more instances per leaf, helping regularization
 }
 

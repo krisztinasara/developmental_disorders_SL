@@ -23,30 +23,34 @@ my_labeller = as_labeller(
 )
 
 long_names = c(
-  `ID` = "Id",
-  `group` = "Diagnosis",
-  `age_years` = "Age in years",
-  `expr_vocab` = "Expressive vocabulary",
-  `sent_rep` = 'Sentence repetition',
-  `prod` = 'Production',
-  `IQ` = "Intelligence Quotient",
-  `group` = "Group",
-  `AGL_medRT_diff` = "Median Reaction Time\nDifference in AGL",
-  `AGL_offline` = "Artificial Grammar Learning\noffline",
-  `digit_span_forward` = "Digit Span Forward\n(jittered)",
-  `digit_span_backward` = "Digit Span Backward\n(jittered)",
-  `PS_vis_RT_med` = "Processing Speed\nVisual RT Median",
-  `PS_ac_RT_med` = "Processing Speed\nAcoustic RT Median",
-  `n_back_2_mean_score` = "N-Back 2\nMean Score",
-  `AFC_phr` = "Artificial Grammar Learning\nphrase (jittered)",
-  `AFC_sent` = "Artificial Grammar Learning\nsentence (jittered)",
-  `group_TD` = 'Typically Developing',
-  `group_DLD` = 'Developmental\nLanguage Disorder',
-  `group_ADHD` = 'Attention-Deficit/\nHyperactivity Disorder',
-  `group_ASD` = 'Autism Spectrum\nDisorder',
-  `sent_rep_pred` = "Predicted\nsentence repetition",
-  `expr_vocab_pred` = "Predicted\nexpressive vocabulary"
-)
+    `ID` = "Id",
+    # ez nem redundáns a dummy coded diagnózissal? (lehet, hogy nem gond)
+    `group` = "Diagnosis",
+    `age_years` = "Age in years",
+    `expr_vocab` = "Expressive vocabulary",
+    `sent_rep` = 'Sentence repetition',
+    # ez a prod nem kell, mert AGL offline subscore
+    #`prod` = 'Production',
+    `IQ` = "Intelligence Quotient",
+    `AGL_medRT_diff` = "Artificial Grammar Learning\nmedian RT difference",
+    `AGL_offline` = "Artificial Grammar Learning\noffline",
+    `digit_span_forward` = "Forward digit span\n(jittered)",
+    `digit_span_backward` = "Backward digit span\n(jittered)",
+    `PS_vis_RT_med` = "Processing speed\nvisual median RT",
+    `PS_ac_RT_med` = "Processing Speed\nacoustic median RT",
+    `n_back_2_mean_score` = "N-nack 2\nmean score",
+    # ez a phr nem kell, mert ez az AGL offlineban benne van
+    #`AFC_phr` = "Artificial Grammar Learning\nphrase (jittered)",
+    # ez sem kell, mert ez is benne van az AGL offline-ban
+    #`AFC_sent` = "Artificial Grammar Learning\nsentence (jittered)",
+    `group_TD` = 'Typically developing',
+    `group_DLD` = 'Developmental\nLanguage Disorder',
+    `group_ADHD` = 'Attention-Deficit/\nHyperactivity Disorder',
+    `group_ASD` = 'Autism Spectrum\nDisorder',
+    `sent_rep_pred` = "Predicted\nsentence repetition",
+    `expr_vocab_pred` = "Predicted\nexpressive vocabulary"
+  )
+  
 
 # -- fun -- #
 
@@ -90,7 +94,9 @@ draw_raw_sr = function(dat,my_var){
     mutate(group = fct_relevel(group, 'TD')) |> 
     ggplot(aes(!!sym(my_var),sent_rep)) +
     geom_point() +
+    # geom_density_2d(colour = 'lightgrey') +
     geom_smooth(method = "gam", formula = y ~ s(x, k = 3)) +
+    geom_rug() +
     theme_minimal() +
     facet_wrap( ~ group, nrow = 1, labeller = my_labeller) +
     xlab(my_name) +
@@ -107,7 +113,9 @@ draw_raw_ev = function(dat,my_var){
     mutate(group = fct_relevel(group, 'TD')) |> 
     ggplot(aes(!!sym(my_var),expr_vocab)) +
     geom_point() +
+    # geom_density_2d(colour = 'lightgrey') +
     geom_smooth(method = "gam", formula = y ~ s(x, k = 3)) +
+    geom_rug() +
     theme_minimal() +
     facet_wrap( ~ group, nrow = 1, labeller = my_labeller) +
     xlab(my_name) +
@@ -137,7 +145,8 @@ x_sr = parseResults(x_sr)
 
 d = d |> 
   left_join(p_ev) |> 
-  left_join(p_sr)
+  left_join(p_sr) |> 
+  select(-prod,-AFC_phr,-AFC_sent)
 
 # -- corr -- #
 
@@ -157,7 +166,7 @@ cors |>
   mutate(
     Var1 = fct_inorder(Var1) |> fct_rev(),
     Var2 = Var2 |>
-      str_replace_all('\\n', ' ') |> 
+      # str_replace_all('\\n', ' ') |> 
       fct_inorder()
   ) |> 
   ggplot(aes(Var1,Var2,fill = Correlation, label = round(Correlation,2))) +
@@ -174,14 +183,14 @@ cors |>
   scale_x_discrete(position = 'top') +
   scale_fill_viridis_c(option = 'cividis')
 
-ggsave('viz/correlations.png', width = 12, height = 6, dpi = 900)
+ggsave('viz/correlations.png', width = 9, height = 7, dpi = 900)
 
 # -- missing -- #
 
 d |>
   select(-group,-sent_rep_pred,-expr_vocab_pred) |> 
   rename_columns_2() |> 
-  rename_with(~ str_replace_all(., '\\n', ' ')) |> 
+  # rename_with(~ str_replace_all(., '\\n', ' ')) |> 
   pivot_longer(-Id) |>
   mutate(
     missing = is.na(value),
@@ -198,7 +207,7 @@ d |>
     axis.ticks = element_blank()
         )
 
-ggsave('viz/missing.png', width = 15, height = 5, dpi = 900)
+ggsave('viz/missing.png', width = 7, height = 5, dpi = 900)
 
 # -- xgboost predictions -- #
 
@@ -274,8 +283,8 @@ expr_vocab_varimp = f_ev |>
 sent_rep_plots = map(levels(sent_rep_varimp), draw_raw_sr_2)
 expr_vocab_plots = map(levels(expr_vocab_varimp), draw_raw_ev_2)
 
-wrap_plots(sent_rep_plots, ncol = 1)
-ggsave('viz/sent_rep.png', dpi = 900, width = 6, height = 8) + plot_annotation(title = 'Sentence repetition and other predictors')
+wrap_plots(sent_rep_plots, ncol = 1) + plot_annotation(title = 'Sentence repetition and other predictors') + plot_layout(axes = 'collect')
+ggsave('viz/sent_rep.png', dpi = 900, width = 6, height = 8)
 
-wrap_plots(expr_vocab_plots, ncol = 1)
-ggsave('viz/expr_vocab.png', dpi = 900, width = 6, height = 8) + plot_annotation(title = 'Expressive vocabulary and other predictors')
+wrap_plots(expr_vocab_plots, ncol = 1) + plot_annotation(title = 'Sentence repetition and other predictors') + plot_layout(axes = 'collect')
+ggsave('viz/expr_vocab.png', dpi = 900, width = 6, height = 8)
