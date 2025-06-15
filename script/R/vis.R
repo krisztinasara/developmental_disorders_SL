@@ -38,7 +38,7 @@ long_names = c(
     `digit_span_backward` = "Backward digit span\n(jittered)",
     `PS_vis_RT_med` = "Processing speed\nvisual median RT",
     `PS_ac_RT_med` = "Processing Speed\nacoustic median RT",
-    `n_back_2_mean_score` = "N-nack 2\nmean score",
+    `n_back_2_mean_score` = "N-back 2\nmean score",
     # ez a phr nem kell, mert ez az AGL offlineban benne van
     #`AFC_phr` = "Artificial Grammar Learning\nphrase (jittered)",
     # ez sem kell, mert ez is benne van az AGL offline-ban
