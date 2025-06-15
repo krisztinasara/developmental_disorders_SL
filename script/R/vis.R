@@ -286,5 +286,5 @@ expr_vocab_plots = map(levels(expr_vocab_varimp), draw_raw_ev_2)
 wrap_plots(sent_rep_plots, ncol = 1) + plot_annotation(title = 'Sentence repetition and other predictors') + plot_layout(axes = 'collect')
 ggsave('viz/sent_rep.png', dpi = 900, width = 6, height = 8)
 
-wrap_plots(expr_vocab_plots, ncol = 1) + plot_annotation(title = 'Sentence repetition and other predictors') + plot_layout(axes = 'collect')
+wrap_plots(expr_vocab_plots, ncol = 1) + plot_annotation(title = 'Expressive vocabulary and other predictors') + plot_layout(axes = 'collect')
 ggsave('viz/expr_vocab.png', dpi = 900, width = 6, height = 8)
