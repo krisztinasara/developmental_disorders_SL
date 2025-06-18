@@ -8,8 +8,10 @@ library(ggthemes)
 library(sjPlot)
 library(corrplot)
 library(performance)
+library(scales)
 library(glue)
 library(jsonlite)
+library(broom)
 
 # -- names -- #
 
@@ -84,49 +86,32 @@ rename_columns = function(dat, mapping) {
   }
   return(dat)
 }
-
-# draw raw data w/ sent rep
-draw_raw_sr = function(dat,my_var){
+draw_raw = function(dat, my_var, y_var = c("sent_rep", "expr_vocab")) {
+  # y_var can be either "sent_rep" or "expr_vocab"
+  y_var <- match.arg(y_var)
   
   my_name = long_names[my_var]
+  ylab_txt = if (y_var == "sent_rep") "Sentence repetition" else "Expressive vocabulary"
+  ylim_range = if (y_var == "sent_rep") c(0, 1.3) else c(0.25, 1)
   
   dat |> 
     mutate(group = fct_relevel(group, 'TD')) |> 
-    ggplot(aes(!!sym(my_var),sent_rep)) +
-    geom_point() +
+    ggplot(aes(!!sym(my_var), !!sym(y_var))) +
+    geom_point(alpha = .25) +
     # geom_density_2d(colour = 'lightgrey') +
     geom_smooth(method = "gam", formula = y ~ s(x, k = 3)) +
-    geom_rug() +
-    theme_minimal() +
+    # geom_rug() +
+    theme_few() +
     facet_wrap( ~ group, nrow = 1, labeller = my_labeller) +
     xlab(my_name) +
-    ylab("Sentence repetition") +
-    ylim(0,1.3)
-}
-
-# draw raw data w/ expr vocab
-draw_raw_ev = function(dat,my_var){
-  
-  my_name = long_names[my_var]
-  
-  dat |> 
-    mutate(group = fct_relevel(group, 'TD')) |> 
-    ggplot(aes(!!sym(my_var),expr_vocab)) +
-    geom_point() +
-    # geom_density_2d(colour = 'lightgrey') +
-    geom_smooth(method = "gam", formula = y ~ s(x, k = 3)) +
-    geom_rug() +
-    theme_minimal() +
-    facet_wrap( ~ group, nrow = 1, labeller = my_labeller) +
-    xlab(my_name) +
-    ylab("Expressive vocabulary") +
-    ylim(0.25,1)
+    ylab(ylab_txt) +
+    ylim(ylim_range)
 }
 
 rename_columns_2 = partial(rename_columns, mapping = long_names)
 
-draw_raw_sr_2 = partial(draw_raw_sr, dat = d)
-draw_raw_ev_2 = partial(draw_raw_ev, dat = d)
+draw_raw_sr_2 = partial(draw_raw, dat = d, y_var = "sent_rep")
+draw_raw_ev_2 = partial(draw_raw, dat = d, y_var = 'expr_vocab')
 
 # -- read -- #
 
@@ -284,7 +269,80 @@ sent_rep_plots = map(levels(sent_rep_varimp), draw_raw_sr_2)
 expr_vocab_plots = map(levels(expr_vocab_varimp), draw_raw_ev_2)
 
 wrap_plots(sent_rep_plots, ncol = 1) + plot_annotation(title = 'Sentence repetition and other predictors') + plot_layout(axes = 'collect')
-ggsave('viz/sent_rep.png', dpi = 900, width = 6, height = 8)
+ggsave('viz/sent_rep.png', dpi = 900, width = 6.5, height = 18)
 
 wrap_plots(expr_vocab_plots, ncol = 1) + plot_annotation(title = 'Expressive vocabulary and other predictors') + plot_layout(axes = 'collect')
-ggsave('viz/expr_vocab.png', dpi = 900, width = 6, height = 8)
+ggsave('viz/expr_vocab.png', dpi = 900, width = 6.5, height = 18)
+
+# -- forest plot -- #
+
+# thank you o3
+nms = names(long_names)[str_detect(names(long_names), '(group_|sent_rep_pred|expr_vocab_pred)', negate = T)]
+
+longd = d |> 
+  select(all_of(nms)) |> 
+  pivot_longer(-c(ID,group,expr_vocab,sent_rep), names_to = 'predictor_name', values_to = 'predictor_value') |> 
+  pivot_longer(-c(ID,group,predictor_name,predictor_value), names_to = 'outcome_name', values_to = 'outcome_value') |>   
+  filter(
+    !is.na(predictor_value),
+    !is.na(outcome_value)
+         ) |> 
+  mutate(predictor_tidy = recode(predictor_name, !!!long_names))
+
+ests = longd |> 
+  nest(.by = c(group,outcome_name,predictor_tidy)) |> 
+  mutate(
+    data2 = map(
+      data, 
+      ~ mutate(., 
+               outcome_value_s = rescale(outcome_value),
+               predictor_value_s = rescale(predictor_value)
+               )
+    ),
+    lm = map(
+      data2, 
+      ~ lm(outcome_value_s ~ predictor_value_s, data = .)
+    ),
+    tidy = map(lm, tidy, conf.int = T)
+  ) |> 
+  unnest(tidy) |> 
+  filter(term == 'predictor_value_s') |> 
+  select(group,outcome_name,predictor_tidy,estimate,conf.low,conf.high) |> 
+  mutate(
+    max_est = max(estimate),
+    .by = predictor_tidy
+  ) |> 
+  mutate(
+    group = fct_relevel(group, 'DLD','ASD','ADHD','TD'),
+    predictor_ordered = reorder(predictor_tidy, max_est),
+    pred_num = as.numeric(factor(predictor_ordered)),
+    pred_jit = pred_num + case_when(
+      group == 'TD' ~ -.27,
+      group == 'ADHD' ~ -.09,
+      group == 'ASD' ~ .09,
+      group == 'DLD' ~ .27
+    )
+  )
+
+ests |>
+  ggplot(aes(estimate, pred_jit, colour = group)) +
+  geom_point() +
+  geom_linerange(aes(xmin = conf.low, xmax = conf.high)) +
+  scale_y_continuous(
+    breaks = unique(ests$pred_num),
+    labels = unique(ests$predictor_tidy)
+  ) +
+  facet_wrap(~ outcome_name, labeller = as_labeller(c("sent_rep" = "sentence\nrepetition", "expr_vocab" = "expressive\nvocabulary"))) +
+  theme_bw() +
+  theme(
+    # panel.grid.major.x = element_blank(),    # Remove major vertical grid lines
+    panel.grid.minor.x = element_blank(),    # Remove minor vertical grid lines
+    panel.grid.minor.y = element_blank(),     # Remove minor horizontal grid lines
+    axis.title.y = element_blank(),
+    legend.position = 'top'
+  ) +
+  xlab('linear model coefficient\nwith 95% confidence interval') +
+  scale_colour_colorblind(labels = c('typically\ndeveloping','attention-deficit\nhyperactivity disorder','autism spectrum\ndisorder','developmental\nlanguage disorder')) +
+  guides(colour = guide_legend(ncol = 1)) +
+  geom_vline(xintercept = 0, lty = 3)
+ggsave('viz/betas.png', dpi = 'print', width = 5, height = 7.5)
