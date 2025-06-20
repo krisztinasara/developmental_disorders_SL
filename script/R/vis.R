@@ -27,30 +27,22 @@ my_labeller = as_labeller(
 long_names = c(
     `ID` = "Id",
     # ez nem redundáns a dummy coded diagnózissal? (lehet, hogy nem gond)
-    `group` = "Diagnosis",
-    `age_years` = "Age in years",
-    `expr_vocab` = "Expressive vocabulary",
-    `sent_rep` = 'Sentence repetition',
-    # ez a prod nem kell, mert AGL offline subscore
-    #`prod` = 'Production',
-    `IQ` = "Intelligence Quotient",
-    `AGL_medRT_diff` = "Artificial Grammar Learning\nmedian RT difference",
-    `AGL_offline` = "Artificial Grammar Learning\noffline",
-    `digit_span_forward` = "Forward digit span\n(jittered)",
-    `digit_span_backward` = "Backward digit span\n(jittered)",
-    `PS_vis_RT_med` = "Processing speed\nvisual median RT",
-    `PS_ac_RT_med` = "Processing Speed\nacoustic median RT",
-    `n_back_2_mean_score` = "N-back 2\nmean score",
-    # ez a phr nem kell, mert ez az AGL offlineban benne van
-    #`AFC_phr` = "Artificial Grammar Learning\nphrase (jittered)",
-    # ez sem kell, mert ez is benne van az AGL offline-ban
-    #`AFC_sent` = "Artificial Grammar Learning\nsentence (jittered)",
-    `group_TD` = 'Typically developing',
+    `age_years` = "age in years",
+    `AGL_medRT_diff` = "statistical learning:\nartificial grammar learning\nresponse time",
+    `AGL_offline` = "statistical learning:\nartificial grammar learning\noffline",
+    `PS_vis_RT_med` = "perceptual speed:\nvisual response time",
+    `PS_ac_RT_med` = "perceptual speed:\nauditory response time",
+    `digit_span_forward` = "working memory:\nforward digit span",
+    `digit_span_backward` = "working memory:\nbackward digit span",
+    `n_back_2_mean_score` = "working memory:\nn-back",
+      `expr_vocab` = "language:\nexpressive vocabulary",
+    `sent_rep` = "language:\nsentence repetition",
+    `group_TD` = 'typically developing',
     `group_DLD` = 'Developmental\nLanguage Disorder',
     `group_ADHD` = 'Attention-Deficit/\nHyperactivity Disorder',
     `group_ASD` = 'Autism Spectrum\nDisorder',
-    `sent_rep_pred` = "Predicted\nsentence repetition",
-    `expr_vocab_pred` = "Predicted\nexpressive vocabulary"
+    `sent_rep_pred` = "predicted\nsentence repetition",
+    `expr_vocab_pred` = "predicted\nexpressive vocabulary"
   )
   
 
@@ -86,6 +78,7 @@ rename_columns = function(dat, mapping) {
   }
   return(dat)
 }
+
 draw_raw = function(dat, my_var, y_var = c("sent_rep", "expr_vocab")) {
   # y_var can be either "sent_rep" or "expr_vocab"
   y_var <- match.arg(y_var)
@@ -106,6 +99,27 @@ draw_raw = function(dat, my_var, y_var = c("sent_rep", "expr_vocab")) {
     xlab(my_name) +
     ylab(ylab_txt) +
     ylim(ylim_range)
+}
+
+# take df with fixed col names and bootstrap a distribution of spearman correlations
+bootstrapSpearman = function(my_df){
+  
+  my_df = longd2$data[[1]]
+  
+  my_stat = function(data, indices) {
+    cor(data$outcome_value_s[indices],
+        data$predictor_value_s[indices],
+        method = 'spearman')
+  }
+  
+  boot_result = boot(
+    data = my_df,
+    statistic = my_stat, 
+    R = 2000
+  )
+  
+  bootstrapped_distribution = data.frame(spearman_rho = boot_result$t[,1])
+  return(bootstrapped_distribution)
 }
 
 rename_columns_2 = partial(rename_columns, mapping = long_names)
@@ -137,11 +151,11 @@ d = d |>
 
 # build correlation table of all predictor and outcome variables
 cors = d |>
-  select(-ID,-age_years,-group,-sent_rep_pred,-expr_vocab_pred) |> 
+  select(-ID,-age_years,-group,-sent_rep_pred,-expr_vocab_pred,-IQ,-group_DLD,-group_ASD,-group_ADHD,-sent_rep,-expr_vocab) |> 
   rename_columns_2() |> 
   # rename_with(~ str_replace_all(.x, "\\n", " ")) |> # get rid of \n
   na.omit() |> 
-  cor() |> 
+  cor(method = 'spearman') |> 
   as.data.frame() |> 
   rownames_to_column(var = "Var1") %>%
   pivot_longer(cols = -Var1, names_to = "Var2", values_to = "Correlation")
@@ -168,7 +182,7 @@ cors |>
   scale_x_discrete(position = 'top') +
   scale_fill_viridis_c(option = 'cividis')
 
-ggsave('viz/correlations.png', width = 9, height = 7, dpi = 900)
+ggsave('viz/correlations.png', width = 7.5, height = 5, dpi = 900)
 
 # -- missing -- #
 
@@ -220,7 +234,7 @@ ggsave('viz/predictions.png', width = 6, height = 3, dpi = 900)
 p1 = f_sr |> 
   mutate(
     Feature = ifelse(Feature %in% names(long_names), long_names[Feature], Feature) |>
-      str_replace_all('\\n', ' ') |> 
+      #str_replace_all('\\n', ' ') |> 
       fct_reorder(Importance)
     ) |> 
   ggplot(aes(Importance,Feature)) +
@@ -235,7 +249,7 @@ p1 = f_sr |>
 p2 = f_ev |> 
   mutate(
     Feature = ifelse(Feature %in% names(long_names), long_names[Feature], Feature) |>
-      str_replace_all('\\n', ' ') |> 
+      #str_replace_all('\\n', ' ') |> 
       fct_reorder(Importance)
   ) |> 
   ggplot(aes(Importance,Feature)) +
@@ -248,25 +262,17 @@ p2 = f_ev |>
   ggtitle('Expressive vocabulary model')
 
 p1 / p2
-ggsave('viz/importances.png', dpi = 900, width = 6, height = 6)
+ggsave('viz/importances.png', dpi = 900, width = 6, height = 12)
 
-# -- raw data -- #
+# -- scatterplots -- #
 
-# select interesting variables
-sent_rep_varimp = f_sr |> 
-  filter(str_detect(Feature, 'group', negate = T)) |> 
-  slice(1:5) |> 
-  mutate(Feature = fct_reorder(Feature, -Importance)) |> 
-  pull(Feature)
+# brutalis ganyolas!
+keep_names = d |>
+  select(-ID,-age_years,-group,-sent_rep_pred,-expr_vocab_pred,-IQ,-group_DLD,-group_ASD,-group_ADHD,-sent_rep,-expr_vocab) |> 
+  names()
 
-expr_vocab_varimp = f_ev |> 
-  filter(str_detect(Feature, 'group', negate = T)) |> 
-  slice(1:5) |> 
-  mutate(Feature = fct_reorder(Feature, -Importance)) |> 
-  pull(Feature)
-
-sent_rep_plots = map(levels(sent_rep_varimp), draw_raw_sr_2)
-expr_vocab_plots = map(levels(expr_vocab_varimp), draw_raw_ev_2)
+sent_rep_plots = map(keep_names, draw_raw_sr_2)
+expr_vocab_plots = map(keep_names, draw_raw_ev_2)
 
 wrap_plots(sent_rep_plots, ncol = 1) + plot_annotation(title = 'Sentence repetition and other predictors') + plot_layout(axes = 'collect')
 ggsave('viz/sent_rep.png', dpi = 900, width = 6.5, height = 18)
@@ -277,7 +283,10 @@ ggsave('viz/expr_vocab.png', dpi = 900, width = 6.5, height = 18)
 # -- forest plot -- #
 
 # thank you o3
-nms = names(long_names)[str_detect(names(long_names), '(group_|sent_rep_pred|expr_vocab_pred)', negate = T)]
+nms = names(long_names)[str_detect(names(long_names), '(group_|sent_rep_pred|expr_vocab_pred|age|IQ)', negate = T)]
+
+# whoops
+nms = c(nms,'group')
 
 longd = d |> 
   select(all_of(nms)) |> 
@@ -289,24 +298,26 @@ longd = d |>
          ) |> 
   mutate(predictor_tidy = recode(predictor_name, !!!long_names))
 
-ests = longd |> 
+longd2 = longd |> 
   nest(.by = c(group,outcome_name,predictor_tidy)) |> 
   mutate(
-    data2 = map(
+    data = map(
       data, 
       ~ mutate(., 
                outcome_value_s = rescale(outcome_value),
                predictor_value_s = rescale(predictor_value)
                )
-    ),
-    lm = map(
-      data2, 
-      ~ lm(outcome_value_s ~ predictor_value_s, data = .)
-    ),
-    tidy = map(lm, tidy, conf.int = T)
+      )
+    )
+
+ests = longd2 |> 
+  mutate(
+    pearson = map(
+      data, 
+      ~ tidy(cor.test(.$outcome_value_s,.$predictor_value_s, method = 'pearson'))
+    )
   ) |> 
-  unnest(tidy) |> 
-  filter(term == 'predictor_value_s') |> 
+  unnest(pearson) |> 
   select(group,outcome_name,predictor_tidy,estimate,conf.low,conf.high) |> 
   mutate(
     max_est = max(estimate),
@@ -341,7 +352,7 @@ ests |>
     axis.title.y = element_blank(),
     legend.position = 'top'
   ) +
-  xlab('linear model coefficient\nwith 95% confidence interval') +
+  xlab('Pearson correlation\nwith 95% confidence interval') +
   scale_colour_colorblind(labels = c('typically\ndeveloping','attention-deficit\nhyperactivity disorder','autism spectrum\ndisorder','developmental\nlanguage disorder')) +
   guides(colour = guide_legend(ncol = 1)) +
   geom_vline(xintercept = 0, lty = 3)
