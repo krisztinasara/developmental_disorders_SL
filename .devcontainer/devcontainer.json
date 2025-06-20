@@ -1,0 +1,19 @@
+{
+  "name": "R Workspace",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "settings": {
+    "terminal.integrated.defaultProfile.linux": "bash"
+  },
+  "features": {},
+  "postCreateCommand": "R -e \"languageserver::install()\"",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "REditorSupport.r",
+        "ikuyadeu.r"
+      ]
+    }
+  }
+}
