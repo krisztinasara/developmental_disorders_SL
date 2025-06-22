@@ -5,6 +5,7 @@ setwd('~/Github/developmental_disorders_SL/')
 library(tidyverse)
 library(patchwork)
 library(ggthemes)
+library(ggridges)
 library(sjPlot)
 library(corrplot)
 library(performance)
@@ -45,7 +46,6 @@ long_names = c(
     `expr_vocab_pred` = "predicted\nexpressive vocabulary"
   )
   
-
 # -- fun -- #
 
 # parse json object of xgboost results and parameters into df
@@ -101,27 +101,6 @@ draw_raw = function(dat, my_var, y_var = c("sent_rep", "expr_vocab")) {
     ylim(ylim_range)
 }
 
-# take df with fixed col names and bootstrap a distribution of spearman correlations
-bootstrapSpearman = function(my_df){
-  
-  my_df = longd2$data[[1]]
-  
-  my_stat = function(data, indices) {
-    cor(data$outcome_value_s[indices],
-        data$predictor_value_s[indices],
-        method = 'spearman')
-  }
-  
-  boot_result = boot(
-    data = my_df,
-    statistic = my_stat, 
-    R = 2000
-  )
-  
-  bootstrapped_distribution = data.frame(spearman_rho = boot_result$t[,1])
-  return(bootstrapped_distribution)
-}
-
 rename_columns_2 = partial(rename_columns, mapping = long_names)
 
 draw_raw_sr_2 = partial(draw_raw, dat = d, y_var = "sent_rep")
@@ -136,6 +115,9 @@ f_ev = read_csv('data/feature_importances_expr_vocab.csv')
 f_sr = read_csv('data/feature_importances_sent_rep.csv')
 x_ev = read_json('data/results_expr_vocab.json')
 x_sr = read_json('data/results_sent_rep.json')
+
+draws = read_tsv('data/boot_estimates.gz')
+pearson = read_tsv('data/pearson.tsv')
 
 # -- wrangle -- #
 
@@ -280,80 +262,133 @@ ggsave('viz/sent_rep.png', dpi = 900, width = 6.5, height = 18)
 wrap_plots(expr_vocab_plots, ncol = 1) + plot_annotation(title = 'Expressive vocabulary and other predictors') + plot_layout(axes = 'collect')
 ggsave('viz/expr_vocab.png', dpi = 900, width = 6.5, height = 18)
 
-# -- forest plot -- #
+# -- forest plots -- #
 
-# thank you o3
-nms = names(long_names)[str_detect(names(long_names), '(group_|sent_rep_pred|expr_vocab_pred|age|IQ)', negate = T)]
+## pearson
 
-# whoops
-nms = c(nms,'group')
-
-longd = d |> 
-  select(all_of(nms)) |> 
-  pivot_longer(-c(ID,group,expr_vocab,sent_rep), names_to = 'predictor_name', values_to = 'predictor_value') |> 
-  pivot_longer(-c(ID,group,predictor_name,predictor_value), names_to = 'outcome_name', values_to = 'outcome_value') |>   
-  filter(
-    !is.na(predictor_value),
-    !is.na(outcome_value)
-         ) |> 
-  mutate(predictor_tidy = recode(predictor_name, !!!long_names))
-
-longd2 = longd |> 
-  nest(.by = c(group,outcome_name,predictor_tidy)) |> 
+pearson2 = pearson |> 
   mutate(
-    data = map(
-      data, 
-      ~ mutate(., 
-               outcome_value_s = rescale(outcome_value),
-               predictor_value_s = rescale(predictor_value)
-               )
-      )
-    )
-
-ests = longd2 |> 
-  mutate(
-    pearson = map(
-      data, 
-      ~ tidy(cor.test(.$outcome_value_s,.$predictor_value_s, method = 'pearson'))
-    )
-  ) |> 
-  unnest(pearson) |> 
-  select(group,outcome_name,predictor_tidy,estimate,conf.low,conf.high) |> 
-  mutate(
-    max_est = max(estimate),
-    .by = predictor_tidy
-  ) |> 
-  mutate(
-    group = fct_relevel(group, 'DLD','ASD','ADHD','TD'),
-    predictor_ordered = reorder(predictor_tidy, max_est),
-    pred_num = as.numeric(factor(predictor_ordered)),
-    pred_jit = pred_num + case_when(
-      group == 'TD' ~ -.27,
-      group == 'ADHD' ~ -.09,
-      group == 'ASD' ~ .09,
-      group == 'DLD' ~ .27
+    predictor_label = ifelse(
+      predictor_name %in% names(long_names),
+      long_names[predictor_name],
+      predictor_name
     )
   )
 
-ests |>
-  ggplot(aes(estimate, pred_jit, colour = group)) +
-  geom_point() +
-  geom_linerange(aes(xmin = conf.low, xmax = conf.high)) +
-  scale_y_continuous(
-    breaks = unique(ests$pred_num),
-    labels = unique(ests$predictor_tidy)
-  ) +
-  facet_wrap(~ outcome_name, labeller = as_labeller(c("sent_rep" = "sentence\nrepetition", "expr_vocab" = "expressive\nvocabulary"))) +
-  theme_bw() +
+p1 = pearson2 |> 
+  filter(outcome_name == 'expr_vocab') |>   
+  ggplot() +
+  geom_point(aes(estimate,group)) +
+  geom_linerange(aes(xmin = conf.low, xmax = conf.high, y = group)) +
+  theme_minimal() +
   theme(
-    # panel.grid.major.x = element_blank(),    # Remove major vertical grid lines
-    panel.grid.minor.x = element_blank(),    # Remove minor vertical grid lines
-    panel.grid.minor.y = element_blank(),     # Remove minor horizontal grid lines
+    axis.text.y = element_blank(), # since this is on left
+    axis.ticks.y = element_blank(),
+    panel.border = element_blank(),
     axis.title.y = element_blank(),
-    legend.position = 'top'
-  ) +
-  xlab('Pearson correlation\nwith 95% confidence interval') +
-  scale_colour_colorblind(labels = c('typically\ndeveloping','attention-deficit\nhyperactivity disorder','autism spectrum\ndisorder','developmental\nlanguage disorder')) +
-  guides(colour = guide_legend(ncol = 1)) +
+    strip.text.y.left = element_text(angle = 0, hjust = 0.5) # horizontal facet labels
+  ) + 
+  xlab('Pearson correlation (with 99% CI)') +
+  scale_y_discrete(position = "right") +
+  facet_wrap(~ predictor_label, strip.position = "left", ncol = 1) +
+  ggtitle('Expressive vocabulary') +
   geom_vline(xintercept = 0, lty = 3)
-ggsave('viz/betas.png', dpi = 'print', width = 5, height = 7.5)
+
+p2 = pearson2 |> 
+  filter(outcome_name == 'sent_rep') |>   
+  ggplot() +
+  geom_point(aes(estimate,group)) +
+  geom_linerange(aes(xmin = conf.low, xmax = conf.high, y = group)) +
+  theme_minimal() +
+  theme(
+    strip.text = element_blank(), # since this is on the right
+    axis.ticks.y = element_blank(),
+    panel.border = element_blank(),
+    axis.title.y = element_blank()
+  ) + 
+  xlab('Pearson correlation (with 99% CI)') +
+  scale_y_discrete(position = "right") +
+  facet_wrap(~ predictor_label, ncol = 1) +
+  ggtitle('Sentence repetition') +
+  geom_vline(xintercept = 0, lty = 3)
+
+p1 + p2 + plot_layout(axis_titles = "collect")
+
+ggsave('viz/pearson.png', dpi = 900, width = 7.5, height = 5, bg = 'white')
+
+## spearman
+
+quantile_palette = c(
+  "#F5F5F5",  # < 1st percentile (very light gray)
+  "#E6E6E6",  # 1st–5th percentile (light gray)
+  "#AEAEAE",  # 5th–25th percentile (medium gray)
+  "#AEAEAE",  # 25th–75th percentile (medium gray)
+  "#E6E6E6",  # 75th–99th percentile (light gray)
+  "#F5F5F5"   # > 99th percentile (very light gray)
+)
+
+draws2 = draws |> 
+  mutate(
+    predictor_label = ifelse(
+      predictor_name %in% names(long_names),
+      long_names[predictor_name],
+      predictor_name
+    )
+  )
+
+p3 = draws2 |> 
+  filter(outcome_name == 'expr_vocab') |>   
+  ggplot(aes(draws, group, fill = factor(after_stat(quantile)))) +
+  stat_density_ridges(
+    bandwidth = 0.029,
+    geom = "density_ridges_gradient", 
+    calc_ecdf = TRUE,
+    quantiles = c(0.01, 0.05, 0.25, 0.75, 0.99),
+    quantile_lines = TRUE,
+    rel_min_height = 0.01,
+    scale = 1.33
+  ) +
+  scale_fill_manual(name = "Quartiles", values = quantile_palette) +
+  theme_minimal() +
+  guides(fill = 'none') +
+  theme(
+    panel.border = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    strip.text.y.left = element_text(angle = 0, hjust = 0.5) # horizontal facet labels
+  ) + 
+  xlab('Spearman correlation (bootstrapped)\nwith 1%, 25%, 50%, 75%, 99% quartiles') +
+  scale_y_discrete(position = "right", expand = expansion(mult = c(.1, .25))) +
+  facet_wrap(~ predictor_label, strip.position = "left", ncol = 1) +
+  ggtitle('Expressive vocabulary') +
+  geom_vline(xintercept = 0, lty = 3)
+
+p4 = draws2 |> 
+  filter(outcome_name == 'sent_rep') |>   
+  ggplot(aes(draws, group, fill = factor(after_stat(quantile)))) +
+  stat_density_ridges(
+    bandwidth = 0.029,
+    geom = "density_ridges_gradient", 
+    calc_ecdf = TRUE,
+    quantiles = c(0.01, 0.05, 0.25, 0.75, 0.99),
+    quantile_lines = TRUE,
+    rel_min_height = 0.01,
+    scale = 1.33
+  ) +
+  scale_fill_manual(name = "Quartiles", values = quantile_palette) +
+  theme_minimal() +
+  guides(fill = 'none') +
+  theme(
+    panel.border = element_blank(),
+    strip.text = element_blank(),
+    axis.title.y = element_blank()
+  ) + 
+  xlab('Spearman correlation (bootstrapped)\nwith 1%, 25%, 50%, 75%, 99% quartiles') +
+  scale_y_discrete(position = "right", expand = expansion(mult = c(.1, .25))) +
+  facet_wrap(~ predictor_label, strip.position = "left", ncol = 1) +
+  ggtitle('Sentence repetition') +
+  geom_vline(xintercept = 0, lty = 3)
+
+p3 + p4 + plot_layout(axis_titles = 'collect')
+
+ggsave('viz/spearman.png', dpi = 900, width = 7.5, height = 5, bg = 'white')

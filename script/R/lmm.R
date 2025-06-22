@@ -1,102 +1,66 @@
-# lmm w/ varimp
-
-# loo used to compare. elpd diff needs to be over 2 * se_diff for me to care.
+# lmm
 
 # -- head -- #
 
 setwd('~/Github/developmental_disorders_SL/')
 library(tidyverse)
-library(naniar)
-library(rstanarm)
+library(broom)
+library(performance)
 
 # -- read -- #
 
 d = read_csv('data/df.csv')
-varimp1 = read_tsv('varimp1.tsv')
-varimp2 = read_tsv('varimp2.tsv')
+# varimp1 = read_tsv('varimp1.tsv')
+# varimp2 = read_tsv('varimp2.tsv')
 
 # -- mungle -- #
 
 # response1 = "sent_rep"
 # response2 = "expr_vocab"
 
-d1 = d |> 
-  mutate(group = fct_relevel(group, 'TD')) |> 
-  select(sent_rep,n_back_2_mean_score,digit_span_forward,group,digit_span_backward,AGL_offline) |> 
-  na.omit()
+# predictors
+#`AGL_medRT_diff` = "statistical learning:\nartificial grammar learning\nresponse time",
+#    `AGL_offline` = "statistical learning:\nartificial grammar learning\noffline",
+#    `PS_vis_RT_med` = "perceptual speed:\nvisual response time",
+#    `PS_ac_RT_med` = "perceptual speed:\nauditory response time",
+#    `digit_span_forward` = "working memory:\nforward digit span",
+#    `digit_span_backward` = "working memory:\nbackward digit span",
+#    `n_back_2_mean_score` = "working memory:\nn-back",
 
-d2 = d |> 
+dl = d |> 
   mutate(group = fct_relevel(group, 'TD')) |> 
-  select(expr_vocab,group,AGL_offline,digit_span_backward,PS_vis_RT_med,digit_span_forward,n_back_2_mean_score) |> 
-  na.omit()
+  select(ID,group,expr_vocab,sent_rep,AGL_offline,AGL_medRT_diff,PS_vis_RT_med,PS_ac_RT_med,digit_span_forward,digit_span_backward,n_back_2_mean_score) |>
+  pivot_longer(-c(ID,group,expr_vocab,sent_rep), names_to = 'predictor_name', values_to = 'predictor_value') |> 
+  pivot_longer(-c(ID,group,predictor_name,predictor_value), names_to = 'outcome_name', values_to = 'outcome_value') |>   
+  filter(
+    !is.na(predictor_value),
+    !is.na(outcome_value)
+         )
+
+dn = dl  |> 
+  nest(.by = c(outcome_name,predictor_name))
 
 # -- models -- #
 
-## m1: var imp
+dc = dn |> 
+  mutate(
+    lm1 = map(data, ~ lm(outcome_value ~ predictor_value + group, data = .)),
+    lm2 = map(data, ~ lm(outcome_value ~ predictor_value * group, data = .)),
+    chisq = map2(lm1,lm2, ~ as_tibble(test_likelihoodratio(.x,.y))),
+    tidy_lm1 = map(lm1, ~ tidy(., conf.int = T)),
+    tidy_lm2 = map(lm2, ~ tidy(., conf.int = T))
+  )
 
-fit1 = stan_glm(sent_rep ~ n_back_2_mean_score + digit_span_forward + group + digit_span_backward + AGL_offline, data = d1, chains = 4, cores = 4, iter = 2000)
-fit1a = stan_glm(sent_rep ~ digit_span_forward + group + digit_span_backward + AGL_offline, data = d1, chains = 4, cores = 4, iter = 2000)
-fit1b = stan_glm(sent_rep ~ n_back_2_mean_score + group + digit_span_backward + AGL_offline, data = d1, chains = 4, cores = 4, iter = 2000)
-fit1c = stan_glm(sent_rep ~ n_back_2_mean_score + digit_span_forward + digit_span_backward + AGL_offline, data = d1, chains = 4, cores = 4, iter = 2000)
-fit1d = stan_glm(sent_rep ~ n_back_2_mean_score + digit_span_forward + group + digit_span_backward, data = d1, chains = 4, cores = 4, iter = 2000)
+estimates = dc |> 
+unnest(chisq) |> 
+filter(df_diff == 3) |> 
+mutate(
+  adjusted_p = p * 14,
+  best_lm = ifelse(adjusted_p < 0.05, tidy_lm2, tidy_lm1),
+) |> 
+unnest(best_lm) |> 
+select(outcome_name, predictor_name, Chi2, p, adjusted_p, term, statistic, conf.high, conf.low) 
 
-loo1 = loo(fit1)
-loo1a = loo(fit1a)
-loo1b = loo(fit1b)
-loo1c = loo(fit1c)
-loo1d = loo(fit1d)
-loo_compare(loo1,loo1a)
-loo_compare(loo1,loo1b) # slightly worse
-loo_compare(loo1,loo1c)
-loo_compare(loo1,loo1d) # worse
-
-## m1: interactions
-
-# agl offline
-
-fit1e = stan_glm(sent_rep ~ group * AGL_offline, data = d, chains = 4, cores = 4, iter = 2000) # d, not d1!
-fit1f = stan_glm(sent_rep ~ group + AGL_offline, data = d, chains = 4, cores = 4, iter = 2000)
-
-loo_compare(loo(fit1e),loo(fit1f))
-
-# nothing
-
-## m2: varimp
-
-fit20 = stan_glm(expr_vocab ~ age_years + group + AGL_offline + digit_span_backward + PS_vis_RT_med + digit_span_forward + n_back_2_mean_score, data = d, chains = 4, cores = 4, iter = 2000)
-
-fit2 = stan_glm(expr_vocab ~ group + AGL_offline + digit_span_backward + PS_vis_RT_med + digit_span_forward + n_back_2_mean_score, data = d2, chains = 4, cores = 4, iter = 2000)
-fit2a = stan_glm(expr_vocab ~ AGL_offline + digit_span_backward + PS_vis_RT_med + digit_span_forward + n_back_2_mean_score, data = d2, chains = 4, cores = 4, iter = 2000)
-fit2b = stan_glm(expr_vocab ~ group + digit_span_backward + PS_vis_RT_med + digit_span_forward + n_back_2_mean_score, data = d2, chains = 4, cores = 4, iter = 2000)
-fit2c = stan_glm(expr_vocab ~ group + AGL_offline + PS_vis_RT_med + digit_span_forward + n_back_2_mean_score, data = d2, chains = 4, cores = 4, iter = 2000)
-fit2d = stan_glm(expr_vocab ~ group + AGL_offline + digit_span_backward + digit_span_forward + n_back_2_mean_score, data = d2, chains = 4, cores = 4, iter = 2000)
-fit2e = stan_glm(expr_vocab ~ group + AGL_offline + digit_span_backward + PS_vis_RT_med + n_back_2_mean_score, data = d2, chains = 4, cores = 4, iter = 2000)
-fit2f = stan_glm(expr_vocab ~ group + AGL_offline + digit_span_backward + PS_vis_RT_med + digit_span_forward, data = d2, chains = 4, cores = 4, iter = 2000)
-
-loo2 = loo(fit2, k_threshold = 0.7)
-loo2a = loo(fit2a, k_threshold = 0.7)
-loo2b = loo(fit2b, k_threshold = 0.7)
-loo2c = loo(fit2c, k_threshold = 0.7)
-loo2d = loo(fit2d, k_threshold = 0.7)
-loo2e = loo(fit2e, k_threshold = 0.7)
-loo2f = loo(fit2f, k_threshold = 0.7)
-loo_compare(loo2,loo2a)
-loo_compare(loo2,loo2b)
-loo_compare(loo2,loo2c) # !
-loo_compare(loo2,loo2d)
-loo_compare(loo2,loo2e)
-loo_compare(loo2,loo2f) # !
-
-## m2: interactions
-
-# digit_span_backward
-# n_back_2_mean_score
-fit2g = stan_glm(expr_vocab ~ group * digit_span_backward, data = d, chains = 4, cores = 4, iter = 2000)
-fit2h = stan_glm(expr_vocab ~ group + digit_span_backward, data = d, chains = 4, cores = 4, iter = 2000)
-fit2i = stan_glm(expr_vocab ~ group * n_back_2_mean_score, data = d, chains = 4, cores = 4, iter = 2000)
-fit2j = stan_glm(expr_vocab ~ group + n_back_2_mean_score, data = d, chains = 4, cores = 4, iter = 2000)
-
-loo_compare(loo(fit2g, k_threshold = 0.7),loo(fit2h, k_threshold = 0.7))
-loo_compare(loo(fit2i, k_threshold = 0.7),loo(fit2j, k_threshold = 0.7))
-
-# nothing
+estimates |> 
+ write_tsv('data/lmm_estimates.tsv')
+ 
