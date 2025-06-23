@@ -133,7 +133,7 @@ d = d |>
 
 # build correlation table of all predictor and outcome variables
 cors = d |>
-  select(-ID,-age_years,-group,-sent_rep_pred,-expr_vocab_pred,-IQ,-group_DLD,-group_ASD,-group_ADHD,-sent_rep,-expr_vocab) |> 
+  select(-ID,-age_years,-group,-sent_rep_pred,-expr_vocab_pred,-IQ,-sent_rep,-expr_vocab) |> 
   rename_columns_2() |> 
   # rename_with(~ str_replace_all(.x, "\\n", " ")) |> # get rid of \n
   na.omit() |> 
@@ -142,13 +142,28 @@ cors = d |>
   rownames_to_column(var = "Var1") %>%
   pivot_longer(cols = -Var1, names_to = "Var2", values_to = "Correlation")
 
+# fix factor levels
+my_factor_levels = c(
+  "Developmental\nLanguage Disorder",
+  "Autism Spectrum\nDisorder",
+  "Attention-Deficit/\nHyperactivity Disorder",
+  "perceptual speed:\nvisual response time",
+  "perceptual speed:\nauditory response time",
+  "working memory:\nforward digit span",
+  "working memory:\nbackward digit span",
+  "working memory:\nn-back",
+  "statistical learning:\nartificial grammar learning\nresponse time",
+  "statistical learning:\nartificial grammar learning\noffline"
+)
+
 # visualise it
 cors |>
   mutate(
-    Var1 = fct_inorder(Var1) |> fct_rev(),
-    Var2 = Var2 |>
-      # str_replace_all('\\n', ' ') |> 
-      fct_inorder()
+    Var1 = factor(Var1, levels = my_factor_levels),
+    Var2 = factor(Var2, levels = my_factor_levels) |> fct_rev(),
+    Correlation = ifelse(
+      str_detect(Var1, 'Disorder') & str_detect(Var2, 'Disorder') & Correlation != 1, NA, Correlation
+    )
   ) |> 
   ggplot(aes(Var1,Var2,fill = Correlation, label = round(Correlation,2))) +
   geom_tile() +
@@ -164,7 +179,7 @@ cors |>
   scale_x_discrete(position = 'top') +
   scale_fill_viridis_c(option = 'cividis')
 
-ggsave('viz/correlations.png', width = 7.5, height = 5, dpi = 900)
+ggsave('viz/correlations.png', width = 9, height = 5, dpi = 900)
 
 # -- missing -- #
 
@@ -192,7 +207,7 @@ ggsave('viz/missing.png', width = 7, height = 5, dpi = 900)
 
 # -- xgboost predictions -- #
 
-p1 = d |> 
+p2 = d |> 
   ggplot(aes(sent_rep,sent_rep_pred)) +
   geom_point() +
   geom_smooth() +
@@ -200,7 +215,7 @@ p1 = d |>
   xlab('sentence repetition') +
   ylab('sentence repetition (predicted)')
 
-p2 = d |> 
+p1 = d |> 
   ggplot(aes(expr_vocab,expr_vocab_pred)) +
   geom_point() +
   geom_smooth() +
@@ -213,7 +228,7 @@ ggsave('viz/predictions.png', width = 6, height = 3, dpi = 900)
 
 # -- varimp -- #
 
-p1 = f_sr |> 
+p2 = f_sr |> 
   mutate(
     Feature = ifelse(Feature %in% names(long_names), long_names[Feature], Feature) |>
       #str_replace_all('\\n', ' ') |> 
@@ -228,7 +243,7 @@ p1 = f_sr |>
         ) +
   ggtitle('Sentence repetition model')
 
-p2 = f_ev |> 
+p1 = f_ev |> 
   mutate(
     Feature = ifelse(Feature %in% names(long_names), long_names[Feature], Feature) |>
       #str_replace_all('\\n', ' ') |> 
@@ -244,7 +259,7 @@ p2 = f_ev |>
   ggtitle('Expressive vocabulary model')
 
 p1 / p2
-ggsave('viz/importances.png', dpi = 900, width = 6, height = 12)
+ggsave('viz/importances.png', dpi = 900, width = 6, height = 10.5)
 
 # -- scatterplots -- #
 
@@ -318,15 +333,6 @@ ggsave('viz/pearson.png', dpi = 900, width = 7.5, height = 5, bg = 'white')
 
 ## spearman
 
-quantile_palette = c(
-  "#F5F5F5",  # < 1st percentile (very light gray)
-  "#E6E6E6",  # 1st–5th percentile (light gray)
-  "#AEAEAE",  # 5th–25th percentile (medium gray)
-  "#AEAEAE",  # 25th–75th percentile (medium gray)
-  "#E6E6E6",  # 75th–99th percentile (light gray)
-  "#F5F5F5"   # > 99th percentile (very light gray)
-)
-
 draws2 = draws |> 
   mutate(
     predictor_label = ifelse(
@@ -338,17 +344,13 @@ draws2 = draws |>
 
 p3 = draws2 |> 
   filter(outcome_name == 'expr_vocab') |>   
-  ggplot(aes(draws, group, fill = factor(after_stat(quantile)))) +
+  ggplot(aes(draws, group)) +
   stat_density_ridges(
     bandwidth = 0.029,
     geom = "density_ridges_gradient", 
-    calc_ecdf = TRUE,
-    quantiles = c(0.01, 0.05, 0.25, 0.75, 0.99),
-    quantile_lines = TRUE,
     rel_min_height = 0.01,
-    scale = 1.33
+    scale = 1
   ) +
-  scale_fill_manual(name = "Quartiles", values = quantile_palette) +
   theme_minimal() +
   guides(fill = 'none') +
   theme(
@@ -357,25 +359,21 @@ p3 = draws2 |>
     axis.text.y = element_blank(),
     strip.text.y.left = element_text(angle = 0, hjust = 0.5) # horizontal facet labels
   ) + 
-  xlab('Spearman correlation (bootstrapped)\nwith 1%, 25%, 50%, 75%, 99% quartiles') +
-  scale_y_discrete(position = "right", expand = expansion(mult = c(.1, .25))) +
+  xlab('Spearman correlation (bootstrapped, 99% range)') +
+  scale_y_discrete(position = "right", expand = expansion(mult = c(.1, .35))) +
   facet_wrap(~ predictor_label, strip.position = "left", ncol = 1) +
   ggtitle('Expressive vocabulary') +
   geom_vline(xintercept = 0, lty = 3)
 
 p4 = draws2 |> 
   filter(outcome_name == 'sent_rep') |>   
-  ggplot(aes(draws, group, fill = factor(after_stat(quantile)))) +
+  ggplot(aes(draws, group)) +
   stat_density_ridges(
     bandwidth = 0.029,
     geom = "density_ridges_gradient", 
-    calc_ecdf = TRUE,
-    quantiles = c(0.01, 0.05, 0.25, 0.75, 0.99),
-    quantile_lines = TRUE,
     rel_min_height = 0.01,
-    scale = 1.33
+    scale = 1
   ) +
-  scale_fill_manual(name = "Quartiles", values = quantile_palette) +
   theme_minimal() +
   guides(fill = 'none') +
   theme(
@@ -383,12 +381,12 @@ p4 = draws2 |>
     strip.text = element_blank(),
     axis.title.y = element_blank()
   ) + 
-  xlab('Spearman correlation (bootstrapped)\nwith 1%, 25%, 50%, 75%, 99% quartiles') +
-  scale_y_discrete(position = "right", expand = expansion(mult = c(.1, .25))) +
+  xlab('Spearman correlation (bootstrapped, 99% range)') +
+  scale_y_discrete(position = "right", expand = expansion(mult = c(.1, .35))) +
   facet_wrap(~ predictor_label, strip.position = "left", ncol = 1) +
   ggtitle('Sentence repetition') +
   geom_vline(xintercept = 0, lty = 3)
 
 p3 + p4 + plot_layout(axis_titles = 'collect')
 
-ggsave('viz/spearman.png', dpi = 900, width = 7.5, height = 5, bg = 'white')
+ggsave('viz/spearman.png', dpi = 900, width = 6, height = 7.5, bg = 'white')
