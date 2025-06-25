@@ -1,4 +1,4 @@
-group,age_mean,age_SD,IQ_mean,IQ_SD,n_females,n_males
+group,age_mean,age_SD,IQ_mean,IQ_SD,girls,boys
 TD,11.76,2.1,104.53,12.3,10,22
 ADHD,12.02,1.2,107.5,15.3,5,19
 ASD,11.39,1.8,108.81,10.6,4,21
