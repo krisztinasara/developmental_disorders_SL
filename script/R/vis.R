@@ -18,10 +18,10 @@ library(broom)
 
 my_labeller = as_labeller(
   c(
-    "TD" = 'Typically Developing',
-    "DLD" = 'Developmental\nLanguage Disorder',
-    "ADHD" = 'Attention-Deficit/\nHyperactivity Disorder',
-    "ASD" = 'Autism Spectrum\nDisorder'
+    "TD" = 'TD',
+    "DLD" = 'DLD',
+    "ADHD" = 'ADHD',
+    "ASD" = 'ASD'
   )
 )
 
@@ -29,8 +29,8 @@ long_names = c(
     `ID` = "Id",
     # ez nem redundáns a dummy coded diagnózissal? (lehet, hogy nem gond)
     `age_years` = "age in years",
-    `AGL_medRT_diff` = "statistical learning:\nartificial grammar learning\nresponse time",
-    `AGL_offline` = "statistical learning:\nartificial grammar learning\noffline",
+    `AGL_medRT_diff` = "statistical learning:\nAGL response time",
+    `AGL_offline` = "statistical learning:\nAGL offline",
     `PS_vis_RT_med` = "perceptual speed:\nvisual response time",
     `PS_ac_RT_med` = "perceptual speed:\nauditory response time",
     `digit_span_forward` = "working memory:\nforward digit span",
@@ -38,10 +38,10 @@ long_names = c(
     `n_back_2_mean_score` = "working memory:\nn-back",
       `expr_vocab` = "language:\nexpressive vocabulary",
     `sent_rep` = "language:\nsentence repetition",
-    `group_TD` = 'typically developing',
-    `group_DLD` = 'Developmental\nLanguage Disorder',
-    `group_ADHD` = 'Attention-Deficit/\nHyperactivity Disorder',
-    `group_ASD` = 'Autism Spectrum\nDisorder',
+    `group_TD` = 'TD',
+    `group_DLD` = 'DLD',
+    `group_ADHD` = 'ADHD',
+    `group_ASD` = 'ASD',
     `sent_rep_pred` = "predicted\nsentence repetition",
     `expr_vocab_pred` = "predicted\nexpressive vocabulary"
   )
@@ -109,6 +109,7 @@ draw_raw_ev_2 = partial(draw_raw, dat = d, y_var = 'expr_vocab')
 # -- read -- #
 
 d = read_csv('data/df.csv')
+dem = read_csv('data/dem_groups_res.csv')
 p_ev = read_csv('data/predictions_expr_vocab.csv')
 p_sr = read_csv('data/predictions_sent_rep.csv')
 f_ev = read_csv('data/feature_importances_expr_vocab.csv')
@@ -129,6 +130,8 @@ d = d |>
   left_join(p_sr) |> 
   select(-prod,-AFC_phr,-AFC_sent)
 
+dem$group = factor(dem$group, levels = c("TD", "ADHD", "ASD", "DLD"))
+
 # -- corr -- #
 
 # build correlation table of all predictor and outcome variables
@@ -144,16 +147,16 @@ cors = d |>
 
 # fix factor levels
 my_factor_levels = c(
-  "Developmental\nLanguage Disorder",
-  "Autism Spectrum\nDisorder",
-  "Attention-Deficit/\nHyperactivity Disorder",
+  "DLD",
+  "ADHD",
+  "ASD",
   "perceptual speed:\nvisual response time",
   "perceptual speed:\nauditory response time",
   "working memory:\nforward digit span",
   "working memory:\nbackward digit span",
   "working memory:\nn-back",
-  "statistical learning:\nartificial grammar learning\nresponse time",
-  "statistical learning:\nartificial grammar learning\noffline"
+  "statistical learning:\nAGL response time",
+  "statistical learning:\nAGL offline"
 )
 
 # visualise it
@@ -162,12 +165,12 @@ cors |>
     Var1 = factor(Var1, levels = my_factor_levels),
     Var2 = factor(Var2, levels = my_factor_levels) |> fct_rev(),
     Correlation = ifelse(
-      str_detect(Var1, 'Disorder') & str_detect(Var2, 'Disorder') & Correlation != 1, NA, Correlation
+      (str_detect(Var1, 'Disorder') & str_detect(Var2, 'Disorder') & Correlation != 1) | (Correlation == 1), NA, Correlation
     )
   ) |> 
   ggplot(aes(Var1,Var2,fill = Correlation, label = round(Correlation,2))) +
   geom_tile() +
-  geom_text(colour = 'white') +
+  geom_text(colour = 'black') +
   theme_few() +
   theme(
     axis.title = element_blank(),
@@ -177,7 +180,7 @@ cors |>
     ) +
   guides(fill = 'none') +
   scale_x_discrete(position = 'top') +
-  scale_fill_viridis_c(option = 'cividis')
+  scale_fill_gradient2(low = "#1452CC", mid = "white", high = "#CC1421", midpoint = 0, na.value = "white")
 
 ggsave('viz/correlations.png', width = 9, height = 5, dpi = 900)
 
@@ -390,3 +393,47 @@ p4 = draws2 |>
 p3 + p4 + plot_layout(axis_titles = 'collect')
 
 ggsave('viz/spearman.png', dpi = 900, width = 6, height = 7.5, bg = 'white')
+
+# Kriszti plotjai
+
+# plot age from age_mean and age_SD (as error bars) by group from data with stat = identity
+age = ggplot(dem, aes(x = group, y = age_mean, ymin = age_mean - age_SD, ymax = age_mean + age_SD)) +
+  geom_pointrange() +
+  theme_minimal() +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+  ylab("Age in years") +
+  ggtitle("Age across neurodevelopmental groups")
+
+# plot IQ from IQ_mean and IQ_SD (as error bars) by group from data with stat = identity
+IQ = ggplot(dem, aes(x = group, y = IQ_mean, ymin = IQ_mean - IQ_SD, ymax = IQ_mean + IQ_SD)) +
+  geom_pointrange() +
+  theme_minimal() +
+  theme_minimal() +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+  ylab("Raven’s Colored\nProgressive Matrices\nscore") +
+  ggtitle("IQ across neurodevelopmental groups")
+
+# make a new long df with group and n_males and n_females
+sex = dem |>
+  select(group, boys, girls) |>
+  pivot_longer(cols = c(boys, girls)) |>
+  ggplot(aes(x = group, y = value, fill = name)) +
+  geom_bar(stat = "identity", position = "stack") +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_blank(),
+    legend.title = element_blank()
+  ) +
+  ylab("Number of\nparticipants") +
+  ggtitle("Number of participants across\nneurodevelopmental groups") +
+  scale_fill_manual(values = c("darkgrey", "lightgrey"))
+
+# combine plots
+age + IQ + sex + plot_layout(ncol = 1, axis_titles = 'collect')
+
+# save the plot
+ggsave('C:/Users/krisztinasara/github/developmental_disorders_SL/viz/demography.png', dpi = 900, width = 5, height = 5, bg = 'white')
